@@ -73,9 +73,7 @@ function M.setup(opts)
       end
     end, "go to object " .. edge)
   end
-  if M._setup_operators then
-    M._setup_operators(config, map)
-  end
+  require("editing_tools.operators").setup(config, map)
 end
 
 function M._select(id, kind, direction, count)
@@ -112,6 +110,7 @@ function M._select(id, kind, direction, count)
     return true
   end)
   if not ok or not selected then
+    require("editing_tools.operators").abort()
     vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "n", false)
     if not ok then
       vim.notify(selected, vim.log.levels.ERROR)
@@ -124,6 +123,45 @@ function M.find(id, kind, opts)
 end
 function M.select(id, kind, opts)
   return require("editing_tools.objects").select(id, kind, opts)
+end
+
+function M.apply(action, range, opts)
+  return require("editing_tools.operators").apply(action, range, opts)
+end
+
+function M.operator(action, opts)
+  return require("editing_tools.operators").start(action, opts)
+end
+
+function M.cancel_exchange()
+  require("editing_tools.exchange").cancel()
+end
+
+function M.align_lines(lines, opts)
+  return require("editing_tools.align").lines(lines, opts)
+end
+
+function M.align(range, opts)
+  return require("editing_tools.align").interactive(range, opts)
+end
+
+function M.command(args)
+  local action = args.fargs[1]
+  if action == "cancel" then
+    M.cancel_exchange()
+    require("editing_tools.align").cancel()
+    return
+  end
+  local last = vim.api.nvim_buf_get_lines(0, args.line2 - 1, args.line2, true)[1]
+  local range = { start = { args.line1 - 1, 0 }, finish = { args.line2 - 1, #last }, mode = "line" }
+  if action == "align" then
+    M.align(
+      range,
+      { delimiter = args.fargs[2] or require("editing_tools.config").options.align.delimiter }
+    )
+  else
+    M.apply(action, range)
+  end
 end
 
 return M

@@ -64,7 +64,9 @@ E.setup({ mappings = { inside = false } })
 H.eq(vim.fn.maparg("i", "o"), "", "setup removes previous mappings")
 E.setup()
 
-vim.opt.runtimepath:append(vim.fn.expand("~/.local/share/nvim/site"))
+vim.opt.runtimepath:append(
+  vim.env.EDITING_TOOLS_PARSER_DIR or vim.fn.expand("~/.local/share/nvim/site")
+)
 H.buffer(
   { "local function f(x)", "  return x + 1", "end", "", "local g = function() return 2 end" },
   { 2, 3 }

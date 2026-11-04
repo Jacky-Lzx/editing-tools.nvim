@@ -48,27 +48,7 @@ local function lexical(ctx, snap)
         end
       elseif id == "a" then
         local boundaries = { entry.a + 1 }
-        local protected = {}
-        for _, nested in ipairs(pairs_found) do
-          if nested.a > entry.a and nested.b < entry.b then
-            protected[#protected + 1] = nested
-          end
-        end
-        vim.list_extend(protected, quotes)
-        for i = entry.a + 2, entry.b - 1 do
-          if text:sub(i, i) == "," then
-            local skip = false
-            for _, nested in ipairs(protected) do
-              if nested.a < i and nested.b >= i then
-                skip = true
-                break
-              end
-            end
-            if not skip then
-              boundaries[#boundaries + 1] = i
-            end
-          end
-        end
+        vim.list_extend(boundaries, entry.commas)
         boundaries[#boundaries + 1] = entry.b
         for i = 1, #boundaries - 1 do
           local a, b = boundaries[i], boundaries[i + 1] - 1
@@ -154,17 +134,30 @@ local function lexical(ctx, snap)
 end
 
 local function indentation(ctx)
-  local lines = vim.api.nvim_buf_get_lines(ctx.buf, 0, -1, true)
-  local row = ctx.pos[1] + 1
+  local size = vim.api.nvim_buf_get_offset(ctx.buf, ctx.last)
+    - vim.api.nvim_buf_get_offset(ctx.buf, ctx.first)
+  if size > require("editing_tools.config").options.search.max_bytes then
+    return {}
+  end
+  local lines = vim.api.nvim_buf_get_lines(ctx.buf, ctx.first, ctx.last, true)
+  local row = ctx.pos[1] - ctx.first + 1
   if not lines[row]:find("%S") then
     return {}
   end
-  local target = vim.fn.indent(row)
+  local function indent(index)
+    local width = 0
+    for char in (lines[index]:match("^%s*") or ""):gmatch(".") do
+      width = width
+        + (char == "\t" and vim.bo[ctx.buf].tabstop - width % vim.bo[ctx.buf].tabstop or 1)
+    end
+    return width
+  end
+  local target = indent(row)
   local first, last = row, row
-  while first > 1 and (not lines[first - 1]:find("%S") or vim.fn.indent(first - 1) >= target) do
+  while first > 1 and (not lines[first - 1]:find("%S") or indent(first - 1) >= target) do
     first = first - 1
   end
-  while last < #lines and (not lines[last + 1]:find("%S") or vim.fn.indent(last + 1) >= target) do
+  while last < #lines and (not lines[last + 1]:find("%S") or indent(last + 1) >= target) do
     last = last + 1
   end
   if ctx.kind == "inside" then
@@ -177,7 +170,13 @@ local function indentation(ctx)
   elseif first > 1 then
     first = first - 1
   end
-  return { { start = { first - 1, 0 }, finish = { last - 1, #lines[last] }, mode = "line" } }
+  return {
+    {
+      start = { ctx.first + first - 1, 0 },
+      finish = { ctx.first + last - 1, #lines[last] },
+      mode = "line",
+    },
+  }
 end
 
 function M.collect(id, kind, opts)

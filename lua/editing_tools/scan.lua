@@ -33,7 +33,7 @@ end
 
 -- This lexical scanner deliberately handles ordinary strings and brackets only.
 function M.pairs(text)
-  local stack, pairs_found, quotes = {}, {}, {}
+  local stack, pairs_found, quotes, commas = {}, {}, {}, {}
   local close = { ["("] = ")", ["["] = "]", ["{"] = "}" }
   local quote, quote_start, escaped
   for i = 1, #text do
@@ -52,7 +52,10 @@ function M.pairs(text)
     elseif ch == '"' or ch == "'" or ch == "`" then
       quote, quote_start, escaped = ch, i, false
     elseif close[ch] then
-      stack[#stack + 1] = { a = i - 1, open = ch, close = close[ch] }
+      stack[#stack + 1] = { a = i - 1, open = ch, close = close[ch], commas = {} }
+    elseif ch == "," then
+      local list = stack[#stack] and stack[#stack].commas or commas
+      list[#list + 1] = i
     elseif ch == ")" or ch == "]" or ch == "}" then
       local entry = stack[#stack]
       if entry and entry.close == ch then
@@ -64,7 +67,7 @@ function M.pairs(text)
       end
     end
   end
-  return pairs_found, quotes
+  return pairs_found, quotes, commas
 end
 
 return M
