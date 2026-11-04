@@ -22,6 +22,46 @@ local function read_id()
   return id
 end
 
+local function empty_change(range, register)
+  local registers = {}
+  local names = { '"', "-", "1", register:lower() }
+  if vim.o.clipboard:find("unnamedplus", 1, true) then
+    names[#names + 1] = "+"
+  end
+  if vim.o.clipboard:match("unnamed%f[^%a]") then
+    names[#names + 1] = "*"
+  end
+  for _, name in ipairs(names) do
+    if name ~= "_" then
+      registers[name] = vim.fn.getreginfo(name)
+    end
+  end
+  -- Do not expose the synthetic character as deleted text in user registers.
+  local hook = vim.api.nvim_create_autocmd("TextYankPost", {
+    buffer = 0,
+    once = true,
+    callback = function()
+      for name, info in pairs(registers) do
+        if name ~= '"' then
+          vim.fn.setreg(name, info)
+        end
+      end
+      vim.fn.setreg('"', registers['"'])
+    end,
+  })
+  vim.schedule(function()
+    pcall(vim.api.nvim_del_autocmd, hook)
+  end)
+  require("editing_tools.range").select(range)
+  local eventignore = vim.o.eventignore
+  vim.o.eventignore = "all"
+  local ok, err = pcall(vim.cmd.normal, { "\27i \27v", bang = true })
+  vim.o.eventignore = eventignore
+  if not ok then
+    error(err)
+  end
+end
+
 function M.setup(opts)
   local config = require("editing_tools.config").setup(opts)
   for _, item in ipairs(owned) do
@@ -42,7 +82,12 @@ function M.setup(opts)
           end
           -- Native objects remain native, including user-defined word/sentence motions.
           local builtins = { w = true, W = true, s = true, p = true }
-          if builtins[id] and direction == "current" then
+          if
+            builtins[id]
+            and direction == "current"
+            and config.objects[id] == nil
+            and not config.treesitter[id]
+          then
             return (kind == "inside" and "i" or "a") .. id
           end
           local count = vim.v.count1
@@ -54,6 +99,10 @@ function M.setup(opts)
             .. vim.inspect(direction)
             .. ","
             .. count
+            .. ","
+            .. tostring(mode == "o")
+            .. ","
+            .. vim.inspect(vim.v.register)
             .. ")<CR>"
         end, name .. " text object", true)
       end
@@ -76,7 +125,7 @@ function M.setup(opts)
   require("editing_tools.operators").setup(config, map)
 end
 
-function M._select(id, kind, direction, count)
+function M._select(id, kind, direction, count, operator_pending, register)
   local opts = { direction = direction, count = count }
   if vim.fn.mode():match("^[vV\22]") then
     opts.reference = require("editing_tools.range").visual()
@@ -86,25 +135,18 @@ function M._select(id, kind, direction, count)
     if not range then
       return false
     end
+    if vim.fn.getcmdwintype() == "" then
+      vim.cmd.normal({ "\28\14", bang = true })
+    end
     if require("editing_tools.range").equal(range.start, range.finish) then
-      -- Let Vim handle empty native objects, including ci( and its redo record.
-      local native = {
-        b = "(",
-        ["("] = "(",
-        [")"] = "(",
-        ["["] = "[",
-        ["]"] = "[",
-        ["{"] = "{",
-        ["}"] = "}",
-        ['"'] = '"',
-        ["'"] = "'",
-        ["`"] = "`",
-      }
-      if vim.fn.mode():sub(1, 2) == "no" and native[id] then
-        vim.api.nvim_feedkeys((kind == "inside" and "i" or "a") .. native[id], "ni", false)
-        return true
+      if not operator_pending or vim.v.operator ~= "c" then
+        return false
       end
-      return false
+      -- Vim cannot represent a zero-width Visual motion. A temporary cell lets
+      -- native change consume it while keeping this motion in the redo record.
+      -- The placeholder and its removal share one undo block.
+      empty_change(range, register or '"')
+      return true
     end
     require("editing_tools.range").select(range)
     return true

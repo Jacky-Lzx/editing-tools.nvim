@@ -124,6 +124,11 @@ end
 
 function M.put(range, lines, buf)
   buf = buf or 0
+  if buf ~= 0 and buf ~= api.nvim_get_current_buf() then
+    return api.nvim_buf_call(buf, function()
+      return M.put(range, lines, buf)
+    end)
+  end
   M.validate(range, buf)
   assert(vim.bo[buf].modifiable, "buffer is not modifiable")
   if range.mode == "line" then
@@ -166,18 +171,21 @@ function M.select(range)
   api.nvim_win_set_cursor(0, { start[1] + 1, start[2] })
   vim.cmd.normal({ range.mode == "line" and "V" or "v", bang = true })
   local row, col = finish[1], finish[2]
-  if range.mode ~= "line" and not M.equal(start, finish) then
+  if range.mode ~= "line" and vim.o.selection ~= "exclusive" and not M.equal(start, finish) then
     if col == 0 and row > start[1] then
       row = row - 1
       col = #api.nvim_buf_get_lines(0, row, row + 1, true)[1]
+    else
+      local line = api.nvim_buf_get_lines(0, row, row + 1, true)[1]
+      col = vim.fn.byteidx(line, math.max(0, vim.fn.charidx(line, col) - 1))
     end
-    local line = api.nvim_buf_get_lines(0, row, row + 1, true)[1]
-    col = vim.fn.byteidx(line, math.max(0, vim.fn.charidx(line, col) - 1))
   end
+  -- An inclusive range ending at next-row column zero must select the newline.
+  -- Allow that endpoint, then restore the option while Visual retains the position.
+  local virtualedit = vim.wo.virtualedit
+  vim.wo.virtualedit = "onemore"
   api.nvim_win_set_cursor(0, { row + 1, math.max(0, col) })
-  if vim.o.selection == "exclusive" and range.mode ~= "line" then
-    vim.cmd.normal({ "l", bang = true })
-  end
+  vim.wo.virtualedit = virtualedit
 end
 
 return M

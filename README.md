@@ -1,6 +1,6 @@
 # editing-tools.nvim
 
-Text objects and editing operators built on one range API. Requires Neovim 0.11+.
+Text objects and editing operators built on one range API. Requires Neovim 0.12+.
 No plugin dependencies. Pair insertion and surround belong to a pairing plugin.
 
 ```lua
@@ -76,11 +76,16 @@ object. Native `w`, `W`, `s`, and `p` objects pass through to Vim.
 | `i`, `g` | Indentation block, entire buffer (linewise) |
 | `f`, `c`, `o` | Tree-sitter function, class, block/conditional/loop |
 
+Whitespace-only bracket interiors remain selectable. Empty objects can be changed
+with `c`, including dot-repeat; other operators cancel on a zero-width object.
+
 `g[` / `g]` followed by an object key move to its start / exclusive end.
 Tree-sitter parsers are optional. Queries ship for Lua, Python, JavaScript,
 TypeScript, and TSX; other languages can supply `queries/<lang>/textobjects.scm`.
 
-Objects scan at most 500 lines on each side and 1 MiB by default. Bracket/quote,
+Lexical and indentation objects scan at most 500 lines on each side and 1 MiB by
+default. Tree-sitter uses the installed parser and searches captures within the
+configured line window. Bracket/quote,
 argument, call, and tag objects use lexical rules, not language grammars. They do
 not parse comments, raw strings, language-specific literals, HTML void elements,
 or quoted `>` characters in attributes. Use Tree-sitter providers when those
@@ -150,8 +155,9 @@ python3 tests/tui.py
 stylua --check lua plugin tests
 ```
 
-Core tests use locally installed Lua/Python parsers from
+Query tests use locally installed Lua, Python, JavaScript, TypeScript and TSX parsers from
 `~/.local/share/nvim/site`; set `EDITING_TOOLS_PARSER_DIR` to another runtime
 directory containing `parser/`. Terminal tests use an isolated configuration and
 a real PTY, check intermediate screen contents, and do not load your config.
-Set `NVIM_BIN` to choose a different Neovim executable.
+The integration suite uses actual sibling `pairs.nvim` and `motion-tools.nvim`
+checkouts when present. Set `NVIM_BIN` to choose a different Neovim executable.

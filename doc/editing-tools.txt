@@ -1,0 +1,297 @@
+*editing-tools.txt*  Unified text objects, operators and alignment
+
+Author: Zexi Li
+License: MIT
+Requires: Neovim 0.12 or newer
+
+==============================================================================
+CONTENTS                                                  *editing-tools*
+
+  Setup                         |editing-tools-setup|
+  Text objects                  |editing-tools-objects|
+  Operators                     |editing-tools-operators|
+  Alignment                     |editing-tools-align|
+  Commands                      |editing-tools-commands|
+  Lua API                       |editing-tools-api|
+  Limits                        |editing-tools-limits|
+
+==============================================================================
+SETUP                                                     *editing-tools-setup*
+>
+  require('editing_tools').setup()
+<
+There are no required plugin dependencies. Optional Tree-sitter parsers provide
+syntax objects. Adding the plugin to 'runtimepath' creates :EditingTools but
+does not install keymaps until setup(). Pair insertion and surround remain the
+responsibility of your pairing plugin.
+
+Example configuration (all fields are optional): >
+  require('editing_tools').setup({
+    mappings = {
+      inside = 'i', around = 'a',
+      inside_next = 'in', around_next = 'an',
+      inside_prev = 'il', around_prev = 'al',
+      goto_start = 'g[', goto_end = 'g]',
+      replace = 'cr', exchange = 'gx', multiply = 'gm',
+      sort = 'gs', evaluate = 'g=', align = 'ga',
+    },
+    search = { lines = 500, max_bytes = 1024 * 1024 },
+    align = {
+      delimiter = '=', occurrence = 'all', justify = 'left',
+      padding = 1, trim = true, outside = true,
+    },
+    sort = { numeric = false, ignore_case = false, reverse = false },
+  })
+<
+Set any mapping to false or '' to disable it. Repeated setup removes maps still
+owned by editing-tools. Changing setup does not migrate an existing configuration.
+The defaults gx and ga replace Vim's URI opener and character-info commands.
+
+==============================================================================
+TEXT OBJECTS                                            *editing-tools-objects*
+
+Use i{object} / a{object} in Operator-pending or Visual mode. Native w, W, s and
+p objects pass through to Vim unless explicitly overridden by a provider.
+
+  b                  Balanced (), [] or {} block
+  ( ) [ ] { }        Specific bracket pair
+  q                  Ordinary single, double or backtick quoted string
+  " ' `              Specific quote
+  a                  Comma-separated argument
+  u                  Call including member chain (obj.method(...))
+  U                  Call excluding member chain (method(...))
+  d                  Digits
+  e                  CamelCase / snake_case subword (Unicode runs supported)
+  _                  Underscore-separated segment
+  <Space>            Whitespace
+  t                  Matching tag
+  < >                Angle bracket pair
+  i                  Indentation block, linewise
+  g                  Entire buffer, linewise
+  f                  Tree-sitter function
+  c                  Tree-sitter class
+  o                  Tree-sitter block, conditional or loop
+
+Inner brackets trim whitespace; whitespace-only interiors remain selectable.
+Around arguments include a neighboring comma;
+inner arguments exclude commas and trim whitespace. Around tags include both
+tags. Inner calls select arguments; around calls include name and delimiters.
+Inner indentation excludes boundary blank lines; around includes the preceding
+header line when available.
+
+For the current direction, the smallest containing range wins. If none contains
+the cursor, search forward. A count chooses the nth enclosing range, smallest
+first; when searching forward, it chooses the nth candidate. in/an explicitly
+search forward; il/al explicitly search backward. Counts choose the nth result
+in that direction. Repeating an object in Visual mode expands to an enclosing
+range. A missing object cancels the operator.
+
+Examples: >
+  dib       Delete inside the nearest brackets
+  c2ib      Change inside the second enclosing bracket pair
+  yif       Yank function body
+  daU       Delete a call without the member prefix
+  vid       Select digits
+  dinb      Delete inside the next bracket object
+  g[f       Move to the function's start, recording a jump
+  g]f       Move to the function's exclusive end
+<
+Queries ship for Lua, Python, JavaScript, TypeScript and TSX. Other languages can
+provide queries/{lang}/textobjects.scm. Capture names default to function.inner /
+function.outer, class.inner / class.outer, block.inner / block.outer,
+conditional.inner / conditional.outer, and loop.inner / loop.outer.
+
+Configure capture names (without @) via treesitter: >
+  treesitter = {
+    f = { inside = 'function.inner', around = 'function.outer' },
+    o = { inside = { 'block.inner', 'loop.inner' },
+          around = { 'block.outer', 'loop.outer' } },
+  }
+<
+Parser or query absence yields no match. :checkhealth editing_tools checks the
+current language's query. Runtime query precedence follows Neovim's standard
+rules; existing textobjects queries can remain on 'runtimepath'.
+
+==============================================================================
+OPERATORS                                             *editing-tools-operators*
+
+Each operator uses native |g@|, supports motions/text objects and works in Visual
+mode. Dot repeats the motion or Visual dimensions. Counts control motion extent.
+
+  cr{motion} / crr     Replace from a register
+  gx{motion} / gxx     Exchange two selections
+  gm{motion} / gmm     Duplicate a selection once
+  gs{motion} / gss     Sort
+  g={motion} / g==     Evaluate arithmetic
+  ga{motion} / gaa     Interactive alignment
+
+The doubled-final-key shortcut operates linewise. Thus 3gss sorts three lines,
+2gmm duplicates two lines, and gs$ sorts tokens on the current line. Shortcuts
+take priority over overlapping operator + text-object sequences (e.g. gaa).
+Visual selection is available when a sequence overlaps.
+
+Replacement uses the selected register without changing register contents: >
+  "acriw               Replace a word from register a
+  crr                  Replace a line from the unnamed register
+<
+Character/line ranges accept multiline contents. For a block, one register row
+repeats over every selected row, or register height must match selection height.
+The expression register is unsupported.
+
+Exchange highlights the first selection with EditingToolsExchange (IncSearch).
+Choose the second selection with gx to apply. Extmarks track unrelated edits.
+Changed source text, overlapping ranges, mixed selection modes, nonmodifiable
+buffers and block exchange are rejected. Same-buffer exchange is one undo step;
+cross-buffer exchange has one undo step per buffer. :EditingTools cancel clears
+the first selection.
+
+Sort compares whole lines for multiline/line/block selections. A single-line
+character selection sorts top-level comma fields, or whitespace-separated tokens
+if no top-level comma exists. Nested brackets and ordinary strings protect
+commas. Field whitespace is preserved in its original slots. Numeric mode sorts
+by leading number, with nonnumeric fields after numeric fields. Ties are stable.
+
+Arithmetic evaluation accepts numeric expressions with + - * / % ^ ( ), decimal
+numbers and exponents. It uses Lua arithmetic and rejects non-finite results.
+It does not evaluate general Lua code. Each selected row is one expression.
+A programmatic evaluator callback can provide another explicit transformation.
+
+All editing operators have Normal/Visual <Plug> mappings: >
+  <Plug>(EditingTools-replace)
+  <Plug>(EditingTools-exchange)
+  <Plug>(EditingTools-multiply)
+  <Plug>(EditingTools-sort)
+  <Plug>(EditingTools-evaluate)
+  <Plug>(EditingTools-align)
+<
+==============================================================================
+ALIGNMENT                                                 *editing-tools-align*
+
+ga{motion}, gaa or Visual ga opens a preview. Virtual text displays the result;
+the source text, modified flag and undo history remain unchanged until Enter.
+The default delimiter is literal '='. Strings and brackets protect delimiters;
+bracket depth carries across selected lines. Leading indentation is preserved.
+
+  <CR>             Confirm and apply as one undo step
+  <Esc>, CTRL-C    Cancel
+  d                Prompt for a nonempty literal delimiter
+  o                Cycle all / first / last occurrences
+  j                Toggle left / right justification
+  +, -             Adjust padding (0..100 spaces)
+  b                Toggle bracket and quote filtering
+  t                Toggle trimming field whitespace
+
+Preview mappings are temporary and buffer-local. Leaving the buffer/window,
+entering Insert mode or changing the source cancels. Asynchronous delimiter
+input is ignored if the preview has already ended. Confirmed settings persist
+for dot-repeat; repeating does not reopen preview.
+
+Multicharacter delimiters, wide Unicode and Tab display columns are supported.
+Aligned fields expand Tabs to spaces; lines without a matched delimiter retain
+their original bytes. The first selected display column contributes to widths.
+
+==============================================================================
+COMMANDS                                               *editing-tools-commands*
+
+:[range]EditingTools {action} [delimiter]                       *:EditingTools*
+
+Apply an action to a line range, defaulting to the current line. Actions: align,
+evaluate, exchange, multiply, replace, sort. align accepts an optional literal
+delimiter and opens preview. Other actions execute immediately.
+
+:EditingTools cancel
+    Cancel pending exchange or alignment.
+
+Examples: >
+  :%EditingTools sort
+  :'<,'>EditingTools align =>
+  :EditingTools cancel
+  :checkhealth editing_tools
+<
+==============================================================================
+LUA API                                                     *editing-tools-api*
+
+The module is require('editing_tools').
+
+find(id, kind, opts) -> range|nil
+    kind is 'inside' or 'around'. Options: buf, zero-based pos={row, byte}, count,
+    direction='current'|'next'|'prev', reference=range for Visual expansion.
+
+select(id, kind, opts) -> boolean
+    Select a found nonempty range in the current window.
+
+apply(action, range, opts) -> boolean
+    Synchronous transformation; true if text changed. For exchange, false stages
+    the first range and true completes exchange. Options: buf, register, times
+    (additional copies, default 1), evaluator(lines)->lines, sort/align settings.
+    Explicit API errors raise before buffer writes wherever possible.
+
+operator(action, opts) -> string
+    Prepare an operator and return 'g@', for use in an expression mapping: >
+      vim.keymap.set('n', '<leader>s', function()
+        return require('editing_tools').operator('sort', { numeric = true })
+      end, { expr = true })
+<
+align(range, opts)
+    Start interactive alignment in the current buffer.
+
+align_lines(lines, opts) -> lines
+    Pure alignment transformation. In addition to align settings: tabstop and
+    start_column (zero-based display column, default 0).
+
+cancel_exchange()
+    Clear the first exchange range and its highlight.
+
+Ranges use zero-based rows and UTF-8 byte columns: >
+  { start = { row, byte }, finish = { row, byte }, mode = 'char' }
+<
+finish is exclusive, including the newline when finish is next-row column zero.
+Line ranges use mode='line' and include both endpoint rows, with start column 0
+and finish column equal to the final line's byte length. Range positions must be
+valid UTF-8 boundaries. Ranges are snapshots and should not be reused after edits.
+
+require('editing_tools.range') exposes get(), put(), visual(), operator(kind),
+from_positions(first,last,kind,exclusive), validate() and select(). Block ranges
+must come from visual() or from_positions(), which preserve native virtual-column
+information and partial Tab/wide-character cells. Their transforms retain height.
+from_positions() accepts |getpos()| positions in the current buffer; kind can be
+'char', 'line', 'block', 'v', 'V' or CTRL-V.
+
+Custom object providers: >
+  require('editing_tools').setup({
+    objects = {
+      z = function(ctx)
+        return { { start = {ctx.pos[1], 0}, finish = {ctx.pos[1], 1} } }
+      end,
+      t = false,
+    },
+  })
+<
+ctx contains id, kind, buf, pos, first and last. first/last specify the search
+window (zero-based, last exclusive). Providers must not modify the buffer. Return
+a list of valid ranges or {}. A false provider disables an object. Custom providers
+have precedence over built-in/Tree-sitter objects, including native word objects.
+
+==============================================================================
+LIMITS                                                   *editing-tools-limits*
+
+Lexical and indentation objects are bounded by search.lines and search.max_bytes.
+The entire-buffer object intentionally spans the whole buffer. Tree-sitter uses
+the installed parser and queries the configured line window; syntax parsing may
+still involve the entire tree, including injections.
+
+Lexical objects and alignment recognize ordinary quotes and balanced brackets;
+they do not understand comments, raw strings, regex literals, language-specific
+long strings, HTML void elements, or quoted '>' within tag attributes. Start an
+alignment selection before any opening bracket whose nesting should be honored.
+Use a language-aware custom provider or Tree-sitter query when required.
+
+Exchange supports character and line ranges. Other operators and alignment also
+support blocks. Empty objects support native change and dot-repeat while
+preserving registers. Other operators cancel on a zero-width object, which
+cannot form a Visual selection.
+
+The implementation has no dependency on mini.nvim, repeat.vim, or a particular
+plugin manager. It deliberately has its own API and does not load legacy config.
+
+vim:tw=78:ts=8:ft=help:norl:

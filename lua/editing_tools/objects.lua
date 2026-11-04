@@ -4,6 +4,9 @@ local Scan = require("editing_tools.scan")
 
 local function trim(text, a, b)
   local inside = text:sub(a + 1, b)
+  if inside:match("^%s*$") then
+    return a, b
+  end
   local leading = #(inside:match("^%s*") or "")
   local trailing = #(inside:match("%s*$") or "")
   return math.min(b, a + leading), math.max(a + leading, b - trailing)
@@ -235,6 +238,12 @@ end
 
 function M.find(id, kind, opts)
   opts = opts or {}
+  assert(type(id) == "string" and id ~= "", "object id must be a nonempty string")
+  assert(kind == "inside" or kind == "around", "kind must be inside or around")
+  assert(
+    opts.direction == nil or vim.tbl_contains({ "current", "next", "prev" }, opts.direction),
+    "invalid search direction"
+  )
   local ranges, pos = M.collect(id, kind, opts)
   local direction, count = opts.direction or "current", opts.count or 1
   assert(count >= 1 and count % 1 == 0, "count must be a positive integer")
@@ -284,7 +293,7 @@ end
 
 function M.select(id, kind, opts)
   local range = M.find(id, kind, opts)
-  if not range then
+  if not range or R.equal(range.start, range.finish) then
     return false
   end
   R.select(range)

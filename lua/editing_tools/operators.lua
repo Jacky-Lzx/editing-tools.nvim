@@ -5,6 +5,11 @@ local state
 function M.apply(action, range, opts)
   opts = opts or {}
   local buf = opts.buf or vim.api.nvim_get_current_buf()
+  if buf ~= 0 and buf ~= vim.api.nvim_get_current_buf() then
+    return vim.api.nvim_buf_call(buf, function()
+      return M.apply(action, range, opts)
+    end)
+  end
   if action == "align" then
     return require("editing_tools.align").apply(range, opts, buf)
   end
