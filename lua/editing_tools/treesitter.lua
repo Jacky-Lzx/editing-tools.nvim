@@ -1,4 +1,5 @@
 local M = {}
+local Range = require("editing_tools.range")
 
 function M.collect(ctx, spec)
   local captures = spec[ctx.kind]
@@ -24,16 +25,29 @@ function M.collect(ctx, spec)
       if not query then
         return
       end
-      for id, node, metadata in query:iter_captures(tree:root(), ctx.buf, ctx.first, ctx.last) do
-        if wanted[query.captures[id]] then
-          local native = vim.treesitter.get_range(node, ctx.buf, metadata[id])
-          local a, b, c, d = native[1], native[2], native[4], native[5]
-          -- Some grammars include a final newline in outer nodes.
-          if d == 0 and c >= vim.api.nvim_buf_line_count(ctx.buf) then
-            c = c - 1
-            d = #vim.api.nvim_buf_get_lines(ctx.buf, c, c + 1, true)[1]
+      for _, match, metadata in query:iter_matches(tree:root(), ctx.buf, ctx.first, ctx.last) do
+        for id, nodes in pairs(match) do
+          if wanted[query.captures[id]] then
+            local first, last
+            -- Quantified captures describe one object spanning sibling nodes.
+            for _, node in ipairs(nodes) do
+              local native = vim.treesitter.get_range(node, ctx.buf, metadata[id])
+              local start, finish = { native[1], native[2] }, { native[4], native[5] }
+              if not first or Range.less(start, first) then
+                first = start
+              end
+              if not last or Range.less(last, finish) then
+                last = finish
+              end
+            end
+            local a, b, c, d = first[1], first[2], last[1], last[2]
+            -- Some grammars include a final newline in outer nodes.
+            if d == 0 and c >= vim.api.nvim_buf_line_count(ctx.buf) then
+              c = c - 1
+              d = #vim.api.nvim_buf_get_lines(ctx.buf, c, c + 1, true)[1]
+            end
+            result[#result + 1] = { start = { a, b }, finish = { c, d }, mode = "char" }
           end
-          result[#result + 1] = { start = { a, b }, finish = { c, d }, mode = "char" }
         end
       end
     end)

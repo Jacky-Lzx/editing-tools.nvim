@@ -76,6 +76,41 @@ H.eq(H.text("f"), "return x + 1", "Lua parser query")
 H.eq(H.text("f", "around"), "local function f(x)\n  return x + 1\nend")
 H.keys("dif")
 H.eq(H.lines()[2], "  ", "Tree-sitter operator")
+vim.treesitter.query.set(
+  "lua",
+  "textobjects",
+  [[
+  (function_declaration body: (block (_)+ @function.inner)) @function.outer
+]]
+)
+H.buffer({
+  "function f()",
+  "  local a = 1",
+  "  local b = 2",
+  "  return a + b",
+  "end",
+  "function g()",
+  "  return 3",
+  "end",
+}, { 3, 3 })
+vim.bo.filetype = "lua"
+H.eq(
+  H.text("f"),
+  "local a = 1\n  local b = 2\n  return a + b",
+  "quantified capture spans the whole function body"
+)
+H.eq(
+  H.text("f", "inside", { direction = "next" }),
+  "return 3",
+  "separate query matches stay separate"
+)
+H.keys("dif")
+H.eq(
+  H.lines(),
+  { "function f()", "  ", "end", "function g()", "  return 3", "end" },
+  "quantified capture deletion"
+)
+vim.treesitter.query.set("lua", "textobjects", nil)
 H.buffer(
   { "class C:", "    def f(self):", "        return 1", "", "def g():", "    pass" },
   { 3, 8 }
