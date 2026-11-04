@@ -1,0 +1,9 @@
+(function_declaration body: (statement_block) @function.inner) @function.outer
+(function_expression body: (statement_block) @function.inner) @function.outer
+(arrow_function body: (_) @function.inner) @function.outer
+(method_definition body: (statement_block) @function.inner) @function.outer
+(class_declaration body: (class_body) @class.inner) @class.outer
+(if_statement consequence: (_) @conditional.inner) @conditional.outer
+(for_statement body: (_) @loop.inner) @loop.outer
+(for_in_statement body: (_) @loop.inner) @loop.outer
+(while_statement body: (_) @loop.inner) @loop.outer
