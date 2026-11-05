@@ -103,6 +103,40 @@ not parse comments, raw strings, language-specific literals, HTML void elements,
 or quoted `>` characters in attributes. Use Tree-sitter providers when those
 distinctions matter.
 
+## Insert at selected lines
+
+Visual `mI` starts an insertion at each selected line's first nonblank character;
+`mA` starts at each line's end. A block selection uses its left/right screen
+column instead. The active Visual endpoint remains the native editing cursor.
+Secondary cursors follow typed text live, including Unicode, native register
+inserts, pair mappings, completion replacements and newlines. Cursor highlights
+use the current theme's `Cursor` group.
+
+Escape / Ctrl-C finishes the insert session and removes its markers. A buffer or
+window switch also finishes it. Edits share the primary cursor's native undo
+block, including block padding/tab expansion; explicit native undo breaks remain
+in effect. An empty prepared block session restores its source on cancellation.
+Wide characters are never split, and combining marks remain attached.
+
+This is an insertion-session workflow, not a general Normal-mode multi-cursor
+engine. Stay within the inserted span when editing; leaving it finishes the
+session. An external edit to a target's surrounding text or secondary inserted
+span stops synchronization rather than overwriting that edit. Selections are
+bounded to 1000 lines and 1 MiB; mirrored insertion data is capped at 8 MiB. Insert mappings, completion and snippet engines
+retain their normal key handling. Dot repeat follows native primary-cursor input.
+
+```lua
+local editing = require("editing_tools")
+editing.insert_visual() -- called while in Visual mode
+-- editing.append_visual()
+editing.stop_multicursor()
+-- setup({ mappings = { insert_visual = false, append_visual = false } })
+```
+
+`python3 tests/tui.py multiedit_tui.lua` verifies real input and intermediate
+buffer/cursor states, native undo/redo, tabs, padding, Unicode, pair integration,
+Control-C and buffer switches. It is included in `sh tests/run.sh`.
+
 ## Configuration and API
 
 ```lua

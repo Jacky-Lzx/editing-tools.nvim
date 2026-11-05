@@ -16,6 +16,8 @@ M.defaults = {
     sort = "gs",
     evaluate = "g=",
     align = "ga",
+    insert_visual = "mI",
+    append_visual = "mA",
   },
   search = { lines = 500, max_bytes = 1024 * 1024 },
   objects = {},

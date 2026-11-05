@@ -6,3 +6,6 @@ for suite in queries core operators align regression integration; do
     "${NVIM_BIN:-nvim}" --headless -u NONE -i NONE -n "+set rtp^=." "+lua local ok, err = xpcall(function() dofile('tests/$suite.lua') end, debug.traceback); if not ok then print(err); vim.cmd('cquit 1') end" +qa!
   fi
 done
+
+python3 tests/tui.py
+python3 tests/tui.py multiedit_tui.lua

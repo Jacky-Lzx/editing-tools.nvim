@@ -10,11 +10,14 @@ import select
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import termios
 import time
 
 root = Path(__file__).resolve().parents[1]
+script = sys.argv[1] if len(sys.argv) > 1 else "tui.lua"
+assert script in ("tui.lua", "multiedit_tui.lua")
 with tempfile.TemporaryDirectory(prefix="editing-tools-", dir="/tmp") as directory:
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 32, 110, 0, 0))
@@ -23,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix="editing-tools-", dir="/tmp") as directo
                XDG_STATE_HOME=directory + "/state", XDG_CACHE_HOME=directory + "/cache")
     process = subprocess.Popen([os.environ.get("NVIM_BIN") or shutil.which("nvim"),
                                 "-u", "NONE", "--noplugin", "-n", "-i", "NONE",
-                                "-c", "lua dofile('tests/tui.lua')"], cwd=root, env=env,
+                                "-c", "lua dofile('tests/" + script + "')"], cwd=root, env=env,
                                stdin=slave, stdout=slave, stderr=slave)
     os.close(slave)
     handled, output, sentinel_at = set(), bytearray(), None

@@ -63,6 +63,10 @@ local function empty_change(range, register)
 end
 
 function M.setup(opts)
+  local multi = package.loaded["editing_tools.multiedit"]
+  if multi then
+    multi.stop()
+  end
   local config = require("editing_tools.config").setup(opts)
   for _, item in ipairs(owned) do
     local current = vim.fn.maparg(item[2], item[1], false, true)
@@ -122,6 +126,12 @@ function M.setup(opts)
       end
     end, "go to object " .. edge)
   end
+  map("x", config.mappings.insert_visual, function()
+    M.insert_visual()
+  end, "insert at each selected line")
+  map("x", config.mappings.append_visual, function()
+    M.append_visual()
+  end, "append at each selected line")
   require("editing_tools.operators").setup(config, map)
 end
 
@@ -175,6 +185,21 @@ function M.operator(action, opts)
   return require("editing_tools.operators").start(action, opts)
 end
 
+function M.insert_visual()
+  return require("editing_tools.multiedit").start("insert")
+end
+
+function M.append_visual()
+  return require("editing_tools.multiedit").start("append")
+end
+
+function M.stop_multicursor()
+  local multi = package.loaded["editing_tools.multiedit"]
+  if multi then
+    multi.stop()
+  end
+end
+
 function M.cancel_exchange()
   require("editing_tools.exchange").cancel()
 end
@@ -191,6 +216,7 @@ function M.command(args)
   local action = args.fargs[1]
   if action == "cancel" then
     M.cancel_exchange()
+    M.stop_multicursor()
     require("editing_tools.align").cancel()
     return
   end
