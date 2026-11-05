@@ -51,6 +51,13 @@ occurrences, `j` toggles left/right justification, `+` / `-` adjust padding, `b`
 toggles bracket/quote filtering, and `t` toggles trimming. Temporary buffer mappings
 are restored on exit.
 
+For the previous mini.align workflow, select text and type `ga=`, or use
+`gaip=` / `3gaa=`. The `=` modifier previews alignment of complete operators such
+as `=`, `<=`, `==`, `+=` and `=>`, with separate aligned operator and value columns.
+It trims whitespace, uses single-space padding and includes matches inside quotes
+and brackets, as mini.align does. Enter applies; Esc cancels. `d` switches back to
+literal-delimiter alignment.
+
 Defaults align `=` with one space on each side, preserving indentation and lines
 without a delimiter. Multicharacter delimiters, Unicode display widths and Tab
 columns are supported. Bracket depth carries across lines. Filtering recognizes

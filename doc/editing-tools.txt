@@ -174,12 +174,21 @@ bracket depth carries across selected lines. Leading indentation is preserved.
 
   <CR>             Confirm and apply as one undo step
   <Esc>, CTRL-C    Cancel
+  =                Use mini.align-style operator alignment (see below)
   d                Prompt for a nonempty literal delimiter
   o                Cycle all / first / last occurrences
   j                Toggle left / right justification
   +, -             Adjust padding (0..100 spaces)
   b                Toggle bracket and quote filtering
   t                Toggle trimming field whitespace
+
+Visual ga=, gaip= or 3gaa= selects the equals preset and updates the preview;
+Enter still confirms. Complete operators (=, <=, ==, +=, =>, etc.) are split
+into separate columns and aligned along with their values. This modifier resets
+occurrence to all, trims whitespace, uses one space between columns and includes
+matches inside strings and brackets, matching mini.align's '=' modifier. The d
+prompt returns to literal-delimiter alignment. The equals preset is reused by
+dot-repeat. Programmatic alignment can use preset='equals' with outside=false.
 
 Preview mappings are temporary and buffer-local. Leaving the buffer/window,
 entering Insert mode or changing the source cancels. Asynchronous delimiter

@@ -10,14 +10,25 @@ local function split_lines(lines, opts)
   for row, line in ipairs(lines) do
     local fields, begin, i = {}, 1, 1
     local matches = {}
+    local from, to
+    if opts.preset == "equals" then
+      from, to = line:find("%p*=+[<>~]*")
+    end
     while i <= #line do
       local char = line:sub(i, i)
-      if
-        (not opts.outside or not quote and #stack == 0)
-        and line:sub(i, i + #opts.delimiter - 1) == opts.delimiter
-      then
-        matches[#matches + 1] = i
-        i = i + #opts.delimiter
+      if opts.preset == "equals" then
+        if from and from < i then
+          from, to = line:find("%p*=+[<>~]*", i)
+        end
+      else
+        from, to = nil, nil
+        if line:sub(i, i + #opts.delimiter - 1) == opts.delimiter then
+          from, to = i, i + #opts.delimiter - 1
+        end
+      end
+      if (not opts.outside or not quote and #stack == 0) and from == i then
+        matches[#matches + 1] = { from, to }
+        i = to + 1
       else
         if quote then
           if escaped then
@@ -47,11 +58,16 @@ local function split_lines(lines, opts)
       matches = { matches[#matches] }
     end
     for _, at in ipairs(matches) do
-      fields[#fields + 1] = line:sub(begin, at - 1)
-      begin = at + #opts.delimiter
+      fields[#fields + 1] = line:sub(begin, at[1] - 1)
+      if opts.preset == "equals" then
+        fields[#fields + 1] = line:sub(at[1], at[2])
+      end
+      begin = at[2] + 1
     end
-    fields[#fields + 1] = line:sub(begin)
-    if opts.trim and #fields > 1 then
+    if opts.preset ~= "equals" or begin <= #line or #fields == 0 then
+      fields[#fields + 1] = line:sub(begin)
+    end
+    if opts.trim and (#fields > 1 or opts.preset == "equals") then
       for j, value in ipairs(fields) do
         if j == 1 then
           fields[j] = value:gsub("%s+$", "")
@@ -87,6 +103,7 @@ function M.lines(lines, opts)
   )
   assert(vim.tbl_contains({ "first", "last", "all" }, opts.occurrence), "invalid occurrence")
   assert(vim.tbl_contains({ "left", "right" }, opts.justify), "invalid justification")
+  assert(opts.preset == nil or opts.preset == "equals", "invalid alignment preset")
   assert(
     type(opts.padding) == "number"
       and opts.padding >= 0
@@ -95,6 +112,11 @@ function M.lines(lines, opts)
     "padding must be between 0 and 100"
   )
   local fields = split_lines(lines, opts)
+  local equals = opts.preset == "equals"
+  local first_is_indent = equals
+  for _, row in ipairs(fields) do
+    first_is_indent = first_is_indent and row[1]:match("^%s*$") ~= nil
+  end
   local output, columns, maximum = {}, {}, 0
   for i, row in ipairs(fields) do
     output[i], columns[i] = "", opts.columns and opts.columns[i] or opts.start_column or 0
@@ -105,21 +127,30 @@ function M.lines(lines, opts)
     for i, row in ipairs(fields) do
       if row[col] then
         values[i] = expand_tabs(row[col], columns[i], opts.tabstop or vim.bo.tabstop)
-        if col < #row then
-          width = math.max(width, vim.fn.strdisplaywidth(values[i], columns[i]))
+        if col < #row or equals and opts.justify == "right" then
+          local offset = equals and col == 1 and columns[i] or 0
+          width = math.max(width, vim.fn.strdisplaywidth(values[i], columns[i]) + offset)
         end
       end
     end
     for i, row in ipairs(fields) do
       if row[col] then
         local value = values[i]
-        if col < #row then
-          local padding = string.rep(" ", width - vim.fn.strdisplaywidth(value, columns[i]))
+        if col < #row or equals and opts.justify == "right" and not value:match("^%s*$") then
+          local offset = equals and col == 1 and columns[i] or 0
+          local padding =
+            string.rep(" ", width - vim.fn.strdisplaywidth(value, columns[i]) - offset)
           value = opts.justify == "right" and padding .. value or value .. padding
-          value = value
-            .. string.rep(" ", opts.padding)
-            .. opts.delimiter
-            .. string.rep(" ", opts.padding)
+        end
+        if col < #row then
+          if equals then
+            value = value .. string.rep(" ", col == 1 and first_is_indent and 0 or opts.padding)
+          else
+            value = value
+              .. string.rep(" ", opts.padding)
+              .. opts.delimiter
+              .. string.rep(" ", opts.padding)
+          end
         end
         output[i] = output[i] .. value
         columns[i] = columns[i] + vim.fn.strdisplaywidth(value, columns[i])
@@ -128,7 +159,7 @@ function M.lines(lines, opts)
   end
   -- Unmatched lines retain their bytes, including tabs and trailing spaces.
   for i, row in ipairs(fields) do
-    if #row == 1 then
+    if #row == 1 and not equals then
       output[i] = lines[i]
     end
   end
@@ -237,6 +268,7 @@ function M.interactive(range, opts, callback)
     api.nvim_buf_set_lines(preview_buf, 0, -1, false, {
       "Align "
         .. vim.inspect(options.delimiter)
+        .. (options.preset == "equals" and " operators" or "")
         .. " | "
         .. options.occurrence
         .. " | "
@@ -244,7 +276,7 @@ function M.interactive(range, opts, callback)
         .. " | padding "
         .. options.padding
         .. (options.outside and " | outside brackets/quotes" or " | all positions"),
-      "Enter apply · Esc cancel · d delimiter · o occurrence · j justify · +/- padding · b brackets · t trim",
+      "Enter apply · Esc cancel · = operators · d delimiter · o occurrence · j justify · +/- padding · b brackets · t trim",
     })
   end
   function session.finish(commit)
@@ -300,10 +332,19 @@ function M.interactive(range, opts, callback)
   binding("<C-c>", function()
     session.finish(false)
   end)
+  binding("=", function()
+    -- Match mini.align's '=' modifier: align operator tokens as columns and
+    -- split every match, including those inside strings and brackets.
+    options.preset = "equals"
+    options.delimiter, options.occurrence = "=", "all"
+    options.trim, options.padding, options.outside = true, 1, false
+    render()
+  end)
   binding("d", function()
     vim.ui.input({ prompt = "Align delimiter: ", default = options.delimiter }, function(value)
       if active == session and value and value ~= "" and not value:find("\n", 1, true) then
         options.delimiter = value
+        options.preset = nil
         render()
       end
     end)
