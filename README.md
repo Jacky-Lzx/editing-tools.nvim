@@ -88,7 +88,12 @@ with `c`, including dot-repeat; other operators cancel on a zero-width object.
 
 `g[` / `g]` followed by an object key move to its start / exclusive end.
 Tree-sitter parsers are optional. Queries ship for Lua, Python, JavaScript,
-TypeScript, and TSX; other languages can supply `queries/<lang>/textobjects.scm`.
+TypeScript, TSX, Bash, Fish, C/C++/CUDA, CMake, Rust, Swift, Java,
+SystemVerilog, GDScript, MATLAB, Nix, HTML, CSS, JSON, YAML, TOML,
+Markdown, LaTeX, BibTeX and Vue. Other languages can supply
+`queries/<lang>/textobjects.scm`. Injected languages use their own queries.
+Query data inherited from nvim-treesitter-textobjects is pinned and attributed in
+`THIRD_PARTY.md`; its Lua plugin is not required. Parsers remain externally managed.
 
 Lexical and indentation objects scan at most 500 lines on each side and 1 MiB by
 default. Tree-sitter uses the installed parser and searches captures within the
