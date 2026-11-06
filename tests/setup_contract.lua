@@ -3,14 +3,14 @@ local editing = require("editing_tools")
 local config = require("editing_tools.config")
 local original = function() end
 vim.keymap.set("n", "<F6>", original, { desc = "personal" })
-local opts = { mappings = { multiply = "<F6>" }, objects = { z = function() end } }
+local opts = { mappings = { multiply = "<F6>" }, sort = { numeric = true } }
 local copy = vim.deepcopy(opts)
 editing.setup(opts)
-opts.objects.z = false
-assert(config.options.objects.z == copy.objects.z)
+opts.sort.numeric = false
+assert(config.options.sort.numeric == copy.sort.numeric)
 local mapping = vim.fn.maparg("<F6>", "n", false, true)
 local configured = vim.deepcopy(config.options)
-assert(not pcall(editing.setup, { search = { max_bytes = 0 } }))
+assert(not pcall(editing.setup, { mappings = { multiply = {} } }))
 assert(vim.deep_equal(configured, config.options))
 assert(vim.deep_equal(mapping, vim.fn.maparg("<F6>", "n", false, true)))
 assert(not pcall(editing.setup, false))

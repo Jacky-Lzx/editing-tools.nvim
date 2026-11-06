@@ -3,8 +3,8 @@ vim.o.swapfile, vim.o.shadafile = false, "NONE"
 vim.o.timeoutlen, vim.o.ttimeoutlen = 150, 20
 vim.o.showmode, vim.o.ruler = false, false
 local E = require("editing_tools")
-local A = require("editing_tools.align")
 local H = require("tests.helpers")
+local A = require("editing_tools.align")
 dofile("tests/helpers.lua").setup()
 local directory = assert(vim.env.EDITING_TOOLS_TEST_DIR)
 local cases, index = {}, 0

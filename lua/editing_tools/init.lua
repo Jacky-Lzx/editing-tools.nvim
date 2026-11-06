@@ -48,54 +48,6 @@ local function map(mode, lhs, rhs, desc, expr, action)
   }
 end
 
-local function read_id()
-  local ok, id = pcall(vim.fn.getcharstr)
-  if not ok or id == "\27" or id == "\3" then
-    return nil
-  end
-  return id
-end
-
-local function empty_change(range, register)
-  local registers = {}
-  local names = { '"', "-", "1", register:lower() }
-  if vim.o.clipboard:find("unnamedplus", 1, true) then
-    names[#names + 1] = "+"
-  end
-  if vim.o.clipboard:match("unnamed%f[^%a]") then
-    names[#names + 1] = "*"
-  end
-  for _, name in ipairs(names) do
-    if name ~= "_" then
-      registers[name] = vim.fn.getreginfo(name)
-    end
-  end
-  -- Do not expose the synthetic character as deleted text in user registers.
-  local hook = vim.api.nvim_create_autocmd("TextYankPost", {
-    buffer = 0,
-    once = true,
-    callback = function()
-      for name, info in pairs(registers) do
-        if name ~= '"' then
-          vim.fn.setreg(name, info)
-        end
-      end
-      vim.fn.setreg('"', registers['"'])
-    end,
-  })
-  vim.schedule(function()
-    pcall(vim.api.nvim_del_autocmd, hook)
-  end)
-  require("editing_tools.range").select(range)
-  local eventignore = vim.o.eventignore
-  vim.o.eventignore = "all"
-  local ok, err = pcall(vim.cmd.normal, { "\27i \27v", bang = true })
-  vim.o.eventignore = eventignore
-  if not ok then
-    error(err)
-  end
-end
-
 local function clear_mappings()
   -- Global ownership must be checked beneath buffer-local overrides.
   local snapshots = {}
@@ -135,6 +87,7 @@ function M.dispose()
     end
   end
   clear_mappings()
+  pcall(vim.api.nvim_del_augroup_by_name, "EditingToolsObjectCancellation")
   require("editing_tools.config").setup()
 end
 
@@ -148,57 +101,16 @@ function M.setup(opts)
     end
   end
   clear_mappings()
-  for _, kind in ipairs({ "inside", "around" }) do
-    for _, direction in ipairs({ "current", "next", "prev" }) do
-      local name = kind .. (direction == "current" and "" or "_" .. direction)
-      for _, mode in ipairs({ "o", "x" }) do
-        map(mode, config.mappings[name], function()
-          local id = read_id()
-          if not id then
-            return "<Esc>"
-          end
-          -- Native objects remain native, including user-defined word/sentence motions.
-          local builtins = { w = true, W = true, s = true, p = true }
-          if
-            builtins[id]
-            and direction == "current"
-            and config.objects[id] == nil
-            and not config.treesitter[id]
-          then
-            return (kind == "inside" and "i" or "a") .. id
-          end
-          local count = vim.v.count1
-          return "<Cmd>lua require('editing_tools')._select("
-            .. vim.inspect(id)
-            .. ","
-            .. vim.inspect(kind)
-            .. ","
-            .. vim.inspect(direction)
-            .. ","
-            .. count
-            .. ","
-            .. tostring(mode == "o")
-            .. ","
-            .. vim.inspect(vim.v.register)
-            .. ")<CR>"
-        end, name .. " text object", true, name)
+  vim.api.nvim_create_autocmd("User", {
+    group = vim.api.nvim_create_augroup("EditingToolsObjectCancellation", { clear = true }),
+    pattern = "MotionToolsObjectCancelled",
+    callback = function()
+      local operators = package.loaded["editing_tools.operators"]
+      if operators then
+        operators.abort()
       end
-    end
-  end
-  for _, edge in ipairs({ "start", "end" }) do
-    map("n", config.mappings["goto_" .. edge], function()
-      local id = read_id()
-      if not id then
-        return
-      end
-      local range = M.find(id, "around", { count = vim.v.count1 })
-      if range then
-        vim.cmd.normal({ "m'", bang = true })
-        local pos = edge == "start" and range.start or range.finish
-        vim.api.nvim_win_set_cursor(0, { pos[1] + 1, pos[2] })
-      end
-    end, "go to object " .. edge, false, "goto_" .. edge)
-  end
+    end,
+  })
   map("x", config.mappings.insert_visual, function()
     M.insert_visual()
   end, "insert at each selected line", false, "insert_visual")
@@ -227,48 +139,6 @@ function M.setup(opts)
       map("n", prefix .. prefix:sub(-1), line, action .. " lines", true)
     end
   end
-end
-
-function M._select(id, kind, direction, count, operator_pending, register)
-  local opts = { direction = direction, count = count }
-  if vim.fn.mode():match("^[vV\22]") then
-    opts.reference = require("editing_tools.range").visual()
-  end
-  local ok, selected = pcall(function()
-    local range = M.find(id, kind, opts)
-    if not range then
-      return false
-    end
-    if vim.fn.getcmdwintype() == "" then
-      vim.cmd.normal({ "\28\14", bang = true })
-    end
-    if require("editing_tools.range").equal(range.start, range.finish) then
-      if not operator_pending or vim.v.operator ~= "c" then
-        return false
-      end
-      -- Vim cannot represent a zero-width Visual motion. A temporary cell lets
-      -- native change consume it while keeping this motion in the redo record.
-      -- The placeholder and its removal share one undo block.
-      empty_change(range, register or '"')
-      return true
-    end
-    require("editing_tools.range").select(range)
-    return true
-  end)
-  if not ok or not selected then
-    require("editing_tools.operators").abort()
-    vim.api.nvim_feedkeys(vim.keycode("<Esc>"), "n", false)
-    if not ok then
-      vim.notify(selected, vim.log.levels.ERROR)
-    end
-  end
-end
-
-function M.find(id, kind, opts)
-  return require("editing_tools.objects").find(id, kind, opts)
-end
-function M.select(id, kind, opts)
-  return require("editing_tools.objects").select(id, kind, opts)
 end
 
 function M.apply(action, range, opts)

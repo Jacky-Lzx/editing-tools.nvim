@@ -6,31 +6,10 @@ function M.check()
   else
     vim.health.error("Neovim 0.12+ required")
   end
-  vim.health.info("No required plugin dependencies. Tree-sitter parsers are optional.")
-  local buf = vim.api.nvim_get_current_buf()
-  if vim.api.nvim_buf_get_name(buf) == "health://" then
-    local alternate = vim.fn.bufnr("#")
-    if alternate > 0 and vim.api.nvim_buf_is_loaded(alternate) then
-      buf = alternate
-    end
-  end
-  local lang = vim.treesitter.language.get_lang(vim.bo[buf].filetype)
-  if not lang then
-    vim.health.info("No Tree-sitter language for the current filetype")
-    return
-  end
-  local ok, parser = pcall(vim.treesitter.get_parser, buf, lang, { error = false })
-  if not ok or not parser then
-    vim.health.info("Optional parser not installed: " .. lang)
-    return
-  end
-  local success, query = pcall(vim.treesitter.query.get, lang, "textobjects")
-  if success and query then
-    vim.health.ok("Parser and text-object query available: " .. lang)
-  elseif success then
-    vim.health.info("No textobjects query for " .. lang)
+  if #vim.api.nvim_get_runtime_file("lua/motion_tools/init.lua", false) > 0 then
+    vim.health.ok("motion-tools.nvim is available for ranges and scanning")
   else
-    vim.health.error("Invalid textobjects query: " .. tostring(query))
+    vim.health.error("motion-tools.nvim must be on runtimepath")
   end
 end
 return M

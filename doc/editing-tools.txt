@@ -1,4 +1,4 @@
-*editing-tools.txt*  Unified text objects, operators and alignment
+*editing-tools.txt*  Editing operators, alignment and multi-line insertion
 
 Author: Zexi Li
 License: MIT
@@ -8,7 +8,6 @@ Requires: Neovim 0.12 or newer
 CONTENTS                                                  *editing-tools*
 
   Setup                         |editing-tools-setup|
-  Text objects                  |editing-tools-objects|
   Operators                     |editing-tools-operators|
   Alignment                     |editing-tools-align|
   Commands                      |editing-tools-commands|
@@ -20,27 +19,18 @@ SETUP                                                     *editing-tools-setup*
 >
   require('editing_tools').setup()
 <
-There are no required plugin dependencies. Optional Tree-sitter parsers provide
-syntax objects. Adding the plugin to 'runtimepath' creates :EditingTools but
-does not install keymaps until setup(). Pair insertion and surround remain the
-responsibility of your pairing plugin.
-
-Setup registers entry points and validates options. Scanning, Tree-sitter,
-operators, alignment, exchange and Visual insertion load on first use of that
-feature. Ordinary Insert mode does not load editing implementations.
-Reconfiguration cancels loaded sessions without initializing unused features.
+motion-tools.nvim must be on runtimepath for shared ranges and scanning.
+Object recognition, text-object selection and navigation live in motion-tools.
+Adding editing-tools to runtimepath creates :EditingTools; setup registers
+editing endpoints and validates options. Operators and their implementations
+load on first use. Ordinary Insert does not load them.
 
 Example configuration (all fields are optional): >
   require('editing_tools').setup({
     mappings = {
-      inside = 'i', around = 'a',
-      inside_next = 'in', around_next = 'an',
-      inside_prev = 'il', around_prev = 'al',
-      goto_start = 'g[', goto_end = 'g]',
       replace = 'cr', exchange = 'gx', multiply = 'gm',
       sort = 'gs', evaluate = 'g=', align = 'ga',
     },
-    search = { lines = 500, max_bytes = 1024 * 1024 },
     align = {
       delimiter = '=', occurrence = 'all', justify = 'left',
       padding = 1, trim = true, outside = true,
@@ -51,71 +41,6 @@ Example configuration (all fields are optional): >
 Set any mapping to false or '' to disable it. Repeated setup removes maps still
 owned by editing-tools. Changing setup does not migrate an existing configuration.
 The defaults gx and ga replace Vim's URI opener and character-info commands.
-
-==============================================================================
-TEXT OBJECTS                                            *editing-tools-objects*
-
-Use i{object} / a{object} in Operator-pending or Visual mode. Native w, W, s and
-p objects pass through to Vim unless explicitly overridden by a provider.
-
-  b                  Balanced (), [] or {} block
-  ( ) [ ] { }        Specific bracket pair
-  q                  Ordinary single, double or backtick quoted string
-  " ' `              Specific quote
-  a                  Comma-separated argument
-  u                  Call including member chain (obj.method(...))
-  U                  Call excluding member chain (method(...))
-  d                  Digits
-  e                  CamelCase / snake_case subword (Unicode runs supported)
-  _                  Underscore-separated segment
-  <Space>            Whitespace
-  t                  Matching tag
-  < >                Angle bracket pair
-  i                  Indentation block, linewise
-  g                  Entire buffer, linewise
-  f                  Tree-sitter function
-  c                  Tree-sitter class
-  o                  Tree-sitter block, conditional or loop
-
-Inner brackets trim whitespace; whitespace-only interiors remain selectable.
-Around arguments include a neighboring comma;
-inner arguments exclude commas and trim whitespace. Around tags include both
-tags. Inner calls select arguments; around calls include name and delimiters.
-Inner indentation excludes boundary blank lines; around includes the preceding
-header line when available.
-
-For the current direction, the smallest containing range wins. If none contains
-the cursor, search forward. A count chooses the nth enclosing range, smallest
-first; when searching forward, it chooses the nth candidate. in/an explicitly
-search forward; il/al explicitly search backward. Counts choose the nth result
-in that direction. Repeating an object in Visual mode expands to an enclosing
-range. A missing object cancels the operator.
-
-Examples: >
-  dib       Delete inside the nearest brackets
-  c2ib      Change inside the second enclosing bracket pair
-  yif       Yank function body
-  daU       Delete a call without the member prefix
-  vid       Select digits
-  dinb      Delete inside the next bracket object
-  g[f       Move to the function's start, recording a jump
-  g]f       Move to the function's exclusive end
-<
-Queries ship for Lua, Python, JavaScript, TypeScript and TSX. Other languages can
-provide queries/{lang}/textobjects.scm. Capture names default to function.inner /
-function.outer, class.inner / class.outer, block.inner / block.outer,
-conditional.inner / conditional.outer, and loop.inner / loop.outer.
-
-Configure capture names (without @) via treesitter: >
-  treesitter = {
-    f = { inside = 'function.inner', around = 'function.outer' },
-    o = { inside = { 'block.inner', 'loop.inner' },
-          around = { 'block.outer', 'loop.outer' } },
-  }
-<
-Parser or query absence yields no match. :checkhealth editing_tools checks the
-current language's query. Runtime query precedence follows Neovim's standard
-rules; existing textobjects queries can remain on 'runtimepath'.
 
 ==============================================================================
 OPERATORS                                             *editing-tools-operators*
@@ -227,13 +152,6 @@ LUA API                                                     *editing-tools-api*
 
 The module is require('editing_tools').
 
-find(id, kind, opts) -> range|nil
-    kind is 'inside' or 'around'. Options: buf, zero-based pos={row, byte}, count,
-    direction='current'|'next'|'prev', reference=range for Visual expansion.
-
-select(id, kind, opts) -> boolean
-    Select a found nonempty range in the current window.
-
 apply(action, range, opts) -> boolean
     Synchronous transformation; true if text changed. For exchange, false stages
     the first range and true completes exchange. Options: buf, register, times
@@ -271,34 +189,16 @@ information and partial Tab/wide-character cells. Their transforms retain height
 from_positions() accepts |getpos()| positions in the current buffer; kind can be
 'char', 'line', 'block', 'v', 'V' or CTRL-V.
 
-Custom object providers: >
-  require('editing_tools').setup({
-    objects = {
-      z = function(ctx)
-        return { { start = {ctx.pos[1], 0}, finish = {ctx.pos[1], 1} } }
-      end,
-      t = false,
-    },
-  })
-<
-ctx contains id, kind, buf, pos, first and last. first/last specify the search
-window (zero-based, last exclusive). Providers must not modify the buffer. Return
-a list of valid ranges or {}. A false provider disables an object. Custom providers
-have precedence over built-in/Tree-sitter objects, including native word objects.
+Object providers, query options, find_object() and select_object() belong to
+motion-tools.nvim. editing_tools.range extends motion_tools.range with buffer
+get/put operations and native operator range capture.
 
 ==============================================================================
 LIMITS                                                   *editing-tools-limits*
 
-Lexical and indentation objects are bounded by search.lines and search.max_bytes.
-The entire-buffer object intentionally spans the whole buffer. Tree-sitter uses
-the installed parser and queries the configured line window; syntax parsing may
-still involve the entire tree, including injections.
-
-Lexical objects and alignment recognize ordinary quotes and balanced brackets;
-they do not understand comments, raw strings, regex literals, language-specific
-long strings, HTML void elements, or quoted '>' within tag attributes. Start an
-alignment selection before any opening bracket whose nesting should be honored.
-Use a language-aware custom provider or Tree-sitter query when required.
+Alignment recognizes ordinary quotes and balanced brackets; it does not parse
+language-specific literals or comments. Include opening brackets whose nesting
+should be honored in the selected range.
 
 Exchange supports character and line ranges. Other operators and alignment also
 support blocks. Empty objects support native change and dot-repeat while
@@ -311,9 +211,8 @@ plugin manager. It deliberately has its own API and does not load legacy config.
 
 KEY OWNERSHIP
 
-setup() does not assign user keys. Bind <Plug>(EditingTools-inside),
-<Plug>(EditingTools-around), and their _next/_prev variants in o/x modes.
-Normal movement endpoints: <Plug>(EditingTools-goto_start/goto_end).
+setup() does not assign user keys. Text-object selection and g[ / g] belong to
+motion-tools.nvim; the EditingTools-inside/around/goto endpoints are removed.
 Visual insertion: <Plug>(EditingTools-insert_visual/append_visual).
 Operators: <Plug>(EditingTools-replace/exchange/multiply/sort/evaluate/align)
 in n/x modes; append -line for Normal-mode line operations. Each slash above

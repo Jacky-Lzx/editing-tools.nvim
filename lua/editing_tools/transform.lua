@@ -42,7 +42,7 @@ function M.sort(lines, mode, opts)
     return sorted(lines, opts)
   end
   local text, values, slots = lines[1] or "", {}, {}
-  local _, _, commas = require("editing_tools.scan").pairs(text)
+  local _, _, commas = require("motion_tools.scan").pairs(text)
   if #commas > 0 then
     local begin = 1
     commas[#commas + 1] = #text + 1

@@ -1,12 +1,12 @@
 # editing-tools.nvim
 
-Text objects and editing operators built on one range API. Requires Neovim 0.12+.
-No plugin dependencies. Pair insertion and surround belong to a pairing plugin.
+Editing operators, alignment and multi-line insertion. Requires Neovim 0.12+
+and motion-tools.nvim on runtimepath for range handling and lexical scanning.
+Object recognition, text-object selection and navigation belong to motion-tools;
+pair insertion and surround belong to a pairing plugin.
 
 ```lua
 require("editing_tools").setup()
-vim.keymap.set({ "o", "x" }, "i", "<Plug>(EditingTools-inside)")
-vim.keymap.set({ "o", "x" }, "a", "<Plug>(EditingTools-around)")
 vim.keymap.set({ "n", "x" }, "gx", "<Plug>(EditingTools-exchange)")
 vim.keymap.set("n", "gxx", "<Plug>(EditingTools-exchange-line)")
 ```
@@ -15,15 +15,13 @@ Setup defines namespaced commands and `<Plug>` endpoints without assigning user
 keys. The keys below are a suggested layout. Bind them in your configuration;
 transient alignment controls remain local to the active preview.
 
-Startup registers these entry points and validates options. Text-object scanning,
-Tree-sitter queries, operators, alignment, exchange and Visual insertion load on
+Startup registers these entry points and validates options. Operators, range
+utilities, alignment, exchange and Visual insertion load on
 their first corresponding action. Ordinary Insert mode does not load them.
 Reconfiguration cancels sessions that have already loaded without initializing
 unused features.
 
-Text-object endpoints are `inside`, `around`, `inside_next`, `around_next`,
-`inside_prev`, and `around_prev`; movement endpoints are `goto_start` and
-`goto_end`; Visual insertion uses `insert_visual` and `append_visual`.
+Visual insertion endpoints are `insert_visual` and `append_visual`.
 Operator endpoints are `replace`, `exchange`, `multiply`, `sort`, `evaluate`,
 and `align`, with `-line` variants for Normal-mode line operations. All use the
 `<Plug>(EditingTools-<action>)` spelling.
@@ -86,44 +84,6 @@ ordinary quoted strings and brackets; it does not parse comments or specialized
 language literals. The selection must include the opening bracket to establish
 its nesting context.
 
-## Text objects
-
-Text objects work with native operators and Visual mode. Use `i` / `a` for inside /
-around, `in` / `an` for the next object, and `il` / `al` for the previous object.
-Counts choose enclosing objects from smallest to largest, or the nth next/previous
-object. Native `w`, `W`, `s`, and `p` objects pass through to Vim.
-
-| Key | Object |
-| --- | --- |
-| `b`, `(`, `)`, `[`, `]`, `{`, `}` | Balanced brackets; inner whitespace trimmed |
-| `q`, `"`, `'`, backtick | Ordinary quoted strings |
-| `a` | Comma-separated argument; nested brackets and strings protected |
-| `u`, `U` | Function call, with / without member chain in the name |
-| `d`, `e`, `_`, space | Digits, subword, underscore segment, whitespace |
-| `t`, `<`, `>` | Matching tags, angle brackets |
-| `i`, `g` | Indentation block, entire buffer (linewise) |
-| `f`, `c`, `o` | Tree-sitter function, class, block/conditional/loop |
-
-Whitespace-only bracket interiors remain selectable. Empty objects can be changed
-with `c`, including dot-repeat; other operators cancel on a zero-width object.
-
-`g[` / `g]` followed by an object key move to its start / exclusive end.
-Tree-sitter parsers are optional. Queries ship for Lua, Python, JavaScript,
-TypeScript, TSX, Bash, Fish, C/C++/CUDA, CMake, Rust, Swift, Java,
-SystemVerilog, GDScript, MATLAB, Nix, HTML, CSS, JSON, YAML, TOML,
-Markdown, LaTeX, BibTeX and Vue. Other languages can supply
-`queries/<lang>/textobjects.scm`. Injected languages use their own queries.
-Query data inherited from nvim-treesitter-textobjects is pinned and attributed in
-`THIRD_PARTY.md`; its Lua plugin is not required. Parsers remain externally managed.
-
-Lexical and indentation objects scan at most 500 lines on each side and 1 MiB by
-default. Tree-sitter uses the installed parser and searches captures within the
-configured line window. Bracket/quote,
-argument, call, and tag objects use lexical rules, not language grammars. They do
-not parse comments, raw strings, language-specific literals, HTML void elements,
-or quoted `>` characters in attributes. Use Tree-sitter providers when those
-distinctions matter.
-
 ## Insert at selected lines
 
 Visual `mI` starts an insertion at each selected line's first nonblank character;
@@ -162,18 +122,10 @@ Control-C and buffer switches. It is included in `sh tests/run.sh`.
 
 ```lua
 require("editing_tools").setup({
-  search = { lines = 500, max_bytes = 1024 * 1024 },
   align = { delimiter = "=", occurrence = "all", justify = "left",
     padding = 1, trim = true, outside = true },
   sort = { numeric = false, ignore_case = false, reverse = false },
-  objects = {
-    z = function(ctx)
-      -- Return zero-based byte ranges with an exclusive finish.
-      return { { start = { ctx.pos[1], 0 }, finish = { ctx.pos[1], 1 } } }
-    end,
-    t = false, -- Disable an object.
-  },
-  treesitter = { f = { inside = "function.inner", around = "function.outer" } },
+
 })
 ```
 
@@ -184,10 +136,6 @@ Recommended keys such as `gx` and `ga` replace native actions only if you bind t
 
 The module name is `editing_tools`. Public APIs:
 
-- `find(id, "inside"|"around", opts)` returns a range or `nil`.
-  Options: zero-based `pos`, `buf`, `count`, `direction` (`current`, `next`, `prev`),
-  and optional `reference` range for expanding a selection.
-- `select(id, kind, opts)` selects a found object in the current window.
 - `apply(action, range, opts)` applies a synchronous edit. Options include `buf`,
   sort settings, `register`, `times` (additional copies), and `evaluator`.
 - `operator(action, opts)` returns `g@` for an expression mapping.
@@ -202,15 +150,17 @@ Block ranges come from `require("editing_tools.range").visual()` or
 `from_positions()` and retain native virtual-column information. Ranges describe
 a snapshot, not a persistent selection; only pending exchange uses extmarks.
 
-Custom providers receive `{ id, kind, buf, pos, first, last }`; `first`/`last` are
-the zero-based search window with an exclusive `last`. They return a list of
-valid ranges or `{}`. Providers must not modify the buffer. To use Tree-sitter
-queries from another plugin, keep that plugin on runtimepath; editing-tools does
-not require nvim-treesitter-textobjects itself.
+`motion_tools.find_object()` supplies ranges when an API caller needs object
+recognition. `editing_tools.range` extends the shared `motion_tools.range` with
+`get`, `put`, and native `operator` range capture. Object configuration, queries
+and the former `find`/`select` APIs have moved to motion-tools; configure
+`motion_tools.setup({ textobjects = { search = ..., objects = ..., treesitter = ... } })`.
+The `MotionToolsObjectCancelled` User event cancels a pending custom operator
+without creating a reverse dependency from motion to editing.
 
 `:EditingTools {action}` operates on the current line; `:'<,'>EditingTools sort`
 and `:%EditingTools align =>` accept a line range. `:checkhealth editing_tools`
-checks runtime and the current language's query. See `:help editing-tools`.
+checks runtime and the motion-tools dependency. See `:help editing-tools`.
 
 ## Validation
 
@@ -220,12 +170,10 @@ python3 tests/tui.py
 stylua --check lua plugin tests
 ```
 
-Query tests use locally installed Lua, Python, JavaScript, TypeScript and TSX parsers from
-`~/.local/share/nvim/site`; set `EDITING_TOOLS_PARSER_DIR` to another runtime
-directory containing `parser/`. Terminal tests use an isolated configuration and
-a real PTY, check intermediate screen contents, and do not load your config.
-The integration suite uses actual sibling `pairs.nvim` and `motion-tools.nvim`
-checkouts when present. Set `NVIM_BIN` to choose a different Neovim executable.
+Object/query tests live in motion-tools.nvim. Editing tests use the sibling
+motion-tools.nvim checkout; set `EDITING_TOOLS_MOTION_DIR` to another checkout.
+Terminal tests use an isolated configuration and a real PTY, including actual
+pairs.nvim integration when available. Set `NVIM_BIN` to choose Neovim.
 
 ## Command ownership
 
