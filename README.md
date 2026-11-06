@@ -15,6 +15,12 @@ Setup defines namespaced commands and `<Plug>` endpoints without assigning user
 keys. The keys below are a suggested layout. Bind them in your configuration;
 transient alignment controls remain local to the active preview.
 
+Startup registers these entry points and validates options. Text-object scanning,
+Tree-sitter queries, operators, alignment, exchange and Visual insertion load on
+their first corresponding action. Ordinary Insert mode does not load them.
+Reconfiguration cancels sessions that have already loaded without initializing
+unused features.
+
 Text-object endpoints are `inside`, `around`, `inside_next`, `around_next`,
 `inside_prev`, and `around_prev`; movement endpoints are `goto_start` and
 `goto_end`; Visual insertion uses `insert_visual` and `append_visual`.

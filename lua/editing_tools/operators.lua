@@ -88,34 +88,4 @@ function M.visual(action, opts)
   return kind
 end
 
-function M.setup(config, map)
-  require("editing_tools.align").cancel()
-  require("editing_tools.exchange").cancel()
-  for _, action in ipairs({ "replace", "exchange", "multiply", "sort", "evaluate", "align" }) do
-    local plug = "<Plug>(EditingTools-" .. action .. ")"
-    map("n", plug, function()
-      return M.start(action)
-    end, action .. " motion", true)
-    map("x", plug, function()
-      M.visual(action)
-    end, action .. " selection")
-    map("n", "<Plug>(EditingTools-" .. action .. "-line)", function()
-      return M.start(action) .. "_"
-    end, action .. " lines", true)
-    local prefix = config.mappings[action]
-    if prefix and prefix ~= "" then
-      -- Mappings are callbacks so registers/counts reach the operator unchanged.
-      map("n", prefix, function()
-        return M.start(action)
-      end, action .. " motion", true)
-      map("x", prefix, function()
-        M.visual(action)
-      end, action .. " selection")
-      map("n", prefix .. prefix:sub(-1), function()
-        return M.start(action) .. "_"
-      end, action .. " lines", true)
-    end
-  end
-end
-
 return M

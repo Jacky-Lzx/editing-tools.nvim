@@ -2,7 +2,16 @@ local M = {}
 local owned = {}
 
 local function global_mapping(mode, lhs)
-  local raw = vim.keycode(lhs)
+  local current = vim.fn.maparg(lhs, mode, false, true)
+  if not next(current) then
+    return nil
+  end
+  if current.buffer == 0 then
+    return current
+  end
+  -- maparg() sees buffer-local overrides first. Ownership concerns the global
+  -- mapping underneath, so enumerate only in that exceptional case.
+  local raw = current.lhsraw or vim.keycode(current.lhs)
   for _, mapping in ipairs(vim.api.nvim_get_keymap(mode)) do
     if mapping.lhsraw == raw or vim.keycode(mapping.lhs) == raw then
       mapping.buf = nil
@@ -132,9 +141,11 @@ end
 function M.setup(opts)
   -- Validate before cancelling active edits or replacing mappings.
   local config = require("editing_tools.config").setup(opts)
-  local multi = package.loaded["editing_tools.multiedit"]
-  if multi then
-    multi.stop()
+  for name, method in pairs({ multiedit = "stop", align = "cancel", exchange = "cancel" }) do
+    local module = package.loaded["editing_tools." .. name]
+    if module then
+      module[method]()
+    end
   end
   clear_mappings()
   for _, kind in ipairs({ "inside", "around" }) do
@@ -194,7 +205,28 @@ function M.setup(opts)
   map("x", config.mappings.append_visual, function()
     M.append_visual()
   end, "append at each selected line", false, "append_visual")
-  require("editing_tools.operators").setup(config, map)
+  for _, action in ipairs({ "replace", "exchange", "multiply", "sort", "evaluate", "align" }) do
+    local function start()
+      return M.operator(action)
+    end
+    local function visual()
+      require("editing_tools.operators").visual(action)
+    end
+    local function line()
+      return M.operator(action) .. "_"
+    end
+    local plug = "<Plug>(EditingTools-" .. action .. ")"
+    map("n", plug, start, action .. " motion", true)
+    map("x", plug, visual, action .. " selection")
+    map("n", "<Plug>(EditingTools-" .. action .. "-line)", line, action .. " lines", true)
+    local prefix = config.mappings[action]
+    if prefix and prefix ~= "" then
+      -- Registers/counts reach the operator through its first-use callback.
+      map("n", prefix, start, action .. " motion", true)
+      map("x", prefix, visual, action .. " selection")
+      map("n", prefix .. prefix:sub(-1), line, action .. " lines", true)
+    end
+  end
 end
 
 function M._select(id, kind, direction, count, operator_pending, register)
@@ -263,7 +295,10 @@ function M.stop_multicursor()
 end
 
 function M.cancel_exchange()
-  require("editing_tools.exchange").cancel()
+  local exchange = package.loaded["editing_tools.exchange"]
+  if exchange then
+    exchange.cancel()
+  end
 end
 
 function M.align_lines(lines, opts)
@@ -279,7 +314,10 @@ function M.command(args)
   if action == "cancel" then
     M.cancel_exchange()
     M.stop_multicursor()
-    require("editing_tools.align").cancel()
+    local align = package.loaded["editing_tools.align"]
+    if align then
+      align.cancel()
+    end
     return
   end
   local last = vim.api.nvim_buf_get_lines(0, args.line2 - 1, args.line2, true)[1]

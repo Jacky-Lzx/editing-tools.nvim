@@ -25,6 +25,11 @@ syntax objects. Adding the plugin to 'runtimepath' creates :EditingTools but
 does not install keymaps until setup(). Pair insertion and surround remain the
 responsibility of your pairing plugin.
 
+Setup registers entry points and validates options. Scanning, Tree-sitter,
+operators, alignment, exchange and Visual insertion load on first use of that
+feature. Ordinary Insert mode does not load editing implementations.
+Reconfiguration cancels loaded sessions without initializing unused features.
+
 Example configuration (all fields are optional): >
   require('editing_tools').setup({
     mappings = {

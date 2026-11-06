@@ -28,6 +28,17 @@ editing.setup({ mappings = { multiply = "<F7>" } })
 vim.keymap.set("n", "<F7>", "<Plug>(EditingTools-multiply)", { desc = "user description" })
 editing.dispose()
 assert(vim.fn.maparg("<F7>", "n", false, true).desc == "user description")
+-- Global restoration must work beneath a local override, including leader keys.
+vim.g.mapleader = ","
+vim.keymap.set("n", "<Leader>z", "GLOBAL", { desc = "global original" })
+vim.keymap.set("n", "<Leader>z", "LOCAL", { buffer = true })
+editing.setup({ mappings = { multiply = "<Leader>z" } })
+assert(vim.fn.maparg(",z", "n") == "LOCAL")
+vim.g.mapleader = ";"
+editing.dispose()
+assert(vim.fn.maparg(",z", "n") == "LOCAL")
+vim.keymap.del("n", ",z", { buffer = true })
+assert(vim.fn.maparg(",z", "n") == "GLOBAL")
 print(
   "Editing lifecycle: validation, isolated options, repeated setup and mapping ownership/restoration passed"
 )
