@@ -5,7 +5,7 @@ vim.o.showmode, vim.o.ruler = false, false
 local E = require("editing_tools")
 local A = require("editing_tools.align")
 local H = require("tests.helpers")
-E.setup()
+dofile("tests/helpers.lua").setup()
 local directory = assert(vim.env.EDITING_TOOLS_TEST_DIR)
 local cases, index = {}, 0
 local function case(name, input, setup, verify)

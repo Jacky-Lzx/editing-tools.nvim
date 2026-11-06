@@ -1,6 +1,6 @@
 local H = require("tests.helpers")
 local E = require("editing_tools")
-E.setup()
+dofile("tests/helpers.lua").setup()
 local notifications = {}
 vim.notify = function(message)
   notifications[#notifications + 1] = message

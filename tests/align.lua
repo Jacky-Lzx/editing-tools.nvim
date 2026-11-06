@@ -1,7 +1,7 @@
 local H = require("tests.helpers")
 local E = require("editing_tools")
 local A = require("editing_tools.align")
-E.setup()
+dofile("tests/helpers.lua").setup()
 H.eq(A.lines({ "a=1", "long = 2" }), { "a    = 1", "long = 2" }, "basic alignment")
 H.eq(
   A.lines({ "  a=1", "  long = 2", "\tuntouched " }),

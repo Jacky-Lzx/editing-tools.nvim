@@ -1,7 +1,7 @@
 local H = require("tests.helpers")
 local E = require("editing_tools")
 local R = require("editing_tools.range")
-E.setup()
+dofile("tests/helpers.lua").setup()
 vim.notify = function() end
 H.buffer({ "a123" }, { 1, 1 })
 vim.o.selection = "exclusive"
@@ -9,7 +9,7 @@ H.keys("did")
 H.eq(H.lines(), { "a" }, "exclusive text object ending at EOL")
 vim.o.selection = "inclusive"
 H.buffer({ "abc", "def", "ghi" })
-E.setup({
+dofile("tests/helpers.lua").setup({
   objects = {
     z = function()
       return { { start = { 0, 1 }, finish = { 2, 0 } } }
@@ -18,7 +18,7 @@ E.setup({
 })
 H.keys("diz")
 H.eq(H.lines(), { "aghi" }, "exclusive finish at next row column zero includes newline")
-E.setup()
+dofile("tests/helpers.lua").setup()
 H.buffer({ "() ()" }, { 1, 1 })
 H.keys("ci(X<Esc>$h.")
 H.eq(H.lines(), { "(X) (X)" }, "repeat empty native change")
@@ -63,7 +63,7 @@ H.eq(H.lines(), { "(X)" }, "empty change redo has no placeholder")
 H.buffer({ "keep me" })
 H.keys("gmiz")
 H.eq(H.lines(), { "keep me" }, "missing object cannot invoke operator")
-E.setup({
+dofile("tests/helpers.lua").setup({
   objects = {
     w = function()
       return { { start = { 0, 0 }, finish = { 0, 2 } } }
@@ -73,7 +73,7 @@ E.setup({
 H.buffer({ "abcd" })
 H.keys("diw")
 H.eq(H.lines(), { "cd" }, "custom provider overrides native word object")
-E.setup()
+dofile("tests/helpers.lua").setup()
 H.buffer({ "ZbQ", "ZaQ", "", "ZdQ", "ZcQ" }, { 1, 1 })
 H.keys("<C-v>jgs")
 H.keys("3j.")

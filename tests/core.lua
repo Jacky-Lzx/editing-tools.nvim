@@ -1,6 +1,6 @@
 local H = require("tests.helpers")
 local E = require("editing_tools")
-E.setup()
+dofile("tests/helpers.lua").setup()
 H.buffer({ 'foo({a, (b, c)}, "x,y", z)' }, { 1, 9 })
 H.eq(H.text("b"), "b, c", "smallest enclosing bracket")
 H.eq(H.text("b", "inside", { count = 2 }), "a, (b, c)", "nested count")
@@ -50,7 +50,7 @@ H.eq(H.lines(), { "(X) (b)" }, "change object")
 H.keys("$h.")
 H.eq(H.lines(), { "(X) (X)" }, "native change repeat")
 
-E.setup({
+dofile("tests/helpers.lua").setup({
   objects = {
     z = function(ctx)
       return { { start = { ctx.pos[1], 0 }, finish = { ctx.pos[1], 1 } } }
@@ -60,9 +60,9 @@ E.setup({
 H.buffer({ "abc" })
 H.keys("diz")
 H.eq(H.lines(), { "bc" }, "custom provider")
-E.setup({ mappings = { inside = false } })
+dofile("tests/helpers.lua").setup({ mappings = { inside = false } })
 H.eq(vim.fn.maparg("i", "o"), "", "setup removes previous mappings")
-E.setup()
+dofile("tests/helpers.lua").setup()
 
 vim.opt.runtimepath:append(
   vim.env.EDITING_TOOLS_PARSER_DIR or vim.fn.expand("~/.local/share/nvim/site")

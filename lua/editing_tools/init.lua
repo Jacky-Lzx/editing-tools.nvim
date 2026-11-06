@@ -1,7 +1,15 @@
 local M = {}
 local owned = {}
 
-local function map(mode, lhs, rhs, desc, expr)
+local function map(mode, lhs, rhs, desc, expr, action)
+  if action then
+    local plug = "<Plug>(EditingTools-" .. action .. ")"
+    map(mode, plug, rhs, desc, expr)
+    if lhs and lhs ~= "" then
+      map(mode, lhs, plug, desc)
+    end
+    return
+  end
   if not lhs or lhs == "" then
     return
   end
@@ -108,7 +116,7 @@ function M.setup(opts)
             .. ","
             .. vim.inspect(vim.v.register)
             .. ")<CR>"
-        end, name .. " text object", true)
+        end, name .. " text object", true, name)
       end
     end
   end
@@ -124,14 +132,14 @@ function M.setup(opts)
         local pos = edge == "start" and range.start or range.finish
         vim.api.nvim_win_set_cursor(0, { pos[1] + 1, pos[2] })
       end
-    end, "go to object " .. edge)
+    end, "go to object " .. edge, false, "goto_" .. edge)
   end
   map("x", config.mappings.insert_visual, function()
     M.insert_visual()
-  end, "insert at each selected line")
+  end, "insert at each selected line", false, "insert_visual")
   map("x", config.mappings.append_visual, function()
     M.append_visual()
-  end, "append at each selected line")
+  end, "append at each selected line", false, "append_visual")
   require("editing_tools.operators").setup(config, map)
 end
 

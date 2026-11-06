@@ -1,4 +1,27 @@
 local M = { count = 0 }
+M.mappings = {
+  inside = "i",
+  around = "a",
+  inside_next = "in",
+  around_next = "an",
+  inside_prev = "il",
+  around_prev = "al",
+  goto_start = "g[",
+  goto_end = "g]",
+  replace = "cr",
+  exchange = "gx",
+  multiply = "gm",
+  sort = "gs",
+  evaluate = "g=",
+  align = "ga",
+  insert_visual = "mI",
+  append_visual = "mA",
+}
+function M.setup(opts)
+  require("editing_tools").setup(
+    vim.tbl_deep_extend("force", { mappings = M.mappings }, opts or {})
+  )
+end
 function M.eq(actual, expected, message)
   M.count = M.count + 1
   assert(

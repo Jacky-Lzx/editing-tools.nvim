@@ -303,4 +303,15 @@ cannot form a Visual selection.
 The implementation has no dependency on mini.nvim, repeat.vim, or a particular
 plugin manager. It deliberately has its own API and does not load legacy config.
 
+
+KEY OWNERSHIP
+
+setup() does not assign user keys. Bind <Plug>(EditingTools-inside),
+<Plug>(EditingTools-around), and their _next/_prev variants in o/x modes.
+Normal movement endpoints: <Plug>(EditingTools-goto_start/goto_end).
+Visual insertion: <Plug>(EditingTools-insert_visual/append_visual).
+Operators: <Plug>(EditingTools-replace/exchange/multiply/sort/evaluate/align)
+in n/x modes; append -line for Normal-mode line operations. Each slash above
+separates distinct endpoint names. Explicit mappings tables are opt-in.
+
 vim:tw=78:ts=8:ft=help:norl:

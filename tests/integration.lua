@@ -11,7 +11,7 @@ vim.opt.runtimepath:append(parent .. "/pairs.nvim")
 vim.opt.runtimepath:append(parent .. "/motion-tools.nvim")
 require("pairs").setup({ surround = { enabled = true } })
 require("motion_tools").setup({ mappings = true })
-require("editing_tools").setup()
+dofile("tests/helpers.lua").setup()
 
 H.buffer({ "" })
 H.keys("i(x<Esc>")

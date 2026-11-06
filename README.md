@@ -5,7 +5,22 @@ No plugin dependencies. Pair insertion and surround belong to a pairing plugin.
 
 ```lua
 require("editing_tools").setup()
+vim.keymap.set({ "o", "x" }, "i", "<Plug>(EditingTools-inside)")
+vim.keymap.set({ "o", "x" }, "a", "<Plug>(EditingTools-around)")
+vim.keymap.set({ "n", "x" }, "gx", "<Plug>(EditingTools-exchange)")
+vim.keymap.set("n", "gxx", "<Plug>(EditingTools-exchange-line)")
 ```
+
+Setup defines namespaced commands and `<Plug>` endpoints without assigning user
+keys. The keys below are a suggested layout. Bind them in your configuration;
+transient alignment controls remain local to the active preview.
+
+Text-object endpoints are `inside`, `around`, `inside_next`, `around_next`,
+`inside_prev`, and `around_prev`; movement endpoints are `goto_start` and
+`goto_end`; Visual insertion uses `insert_visual` and `append_visual`.
+Operator endpoints are `replace`, `exchange`, `multiply`, `sort`, `evaluate`,
+and `align`, with `-line` variants for Normal-mode line operations. All use the
+`<Plug>(EditingTools-<action>)` spelling.
 
 ## Operators
 
@@ -130,7 +145,7 @@ local editing = require("editing_tools")
 editing.insert_visual() -- called while in Visual mode
 -- editing.append_visual()
 editing.stop_multicursor()
--- setup({ mappings = { insert_visual = false, append_visual = false } })
+-- Choose the calling keys in your own configuration.
 ```
 
 `python3 tests/tui.py multiedit_tui.lua` verifies real input and intermediate
@@ -141,7 +156,6 @@ Control-C and buffer switches. It is included in `sh tests/run.sh`.
 
 ```lua
 require("editing_tools").setup({
-  mappings = { exchange = "gx", replace = "cr", evaluate = false },
   search = { lines = 500, max_bytes = 1024 * 1024 },
   align = { delimiter = "=", occurrence = "all", justify = "left",
     padding = 1, trim = true, outside = true },
@@ -157,11 +171,10 @@ require("editing_tools").setup({
 })
 ```
 
-Each mapping can be disabled with `false` or `""`. Setup replaces only mappings
-still owned by this plugin. It installs mappings on request; simply adding the
-plugin to runtimepath does not install them. The default `gx` and `ga` replace
-Vim's URI opener and character information commands; choose other prefixes to
-retain those commands.
+All `mappings` entries default to `false`. Explicit `mappings = { exchange =
+"gx" }` remains an opt-in convenience; prefer binding the public endpoints in
+user configuration. Setup replaces only mappings still owned by this plugin.
+Recommended keys such as `gx` and `ga` replace native actions only if you bind them.
 
 The module name is `editing_tools`. Public APIs:
 
@@ -207,3 +220,10 @@ directory containing `parser/`. Terminal tests use an isolated configuration and
 a real PTY, check intermediate screen contents, and do not load your config.
 The integration suite uses actual sibling `pairs.nvim` and `motion-tools.nvim`
 checkouts when present. Set `NVIM_BIN` to choose a different Neovim executable.
+
+## Command ownership
+
+Commands belong to the plugin; choose global entry keys and short aliases in
+your configuration. Registration reports same-name conflicts without replacing
+user commands. Reconfiguration refreshes only commands still owned by this
+plugin, and cleanup preserves subsequent user replacements.

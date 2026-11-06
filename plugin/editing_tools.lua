@@ -3,7 +3,7 @@ if vim.g.loaded_editing_tools then
 end
 vim.g.loaded_editing_tools = true
 
-vim.api.nvim_create_user_command("EditingTools", function(args)
+require("editing_tools.user_command").create("EditingTools", function(args)
   require("editing_tools").command(args)
 end, {
   nargs = "+",

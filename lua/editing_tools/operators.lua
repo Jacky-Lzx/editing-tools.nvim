@@ -99,6 +99,9 @@ function M.setup(config, map)
     map("x", plug, function()
       M.visual(action)
     end, action .. " selection")
+    map("n", "<Plug>(EditingTools-" .. action .. "-line)", function()
+      return M.start(action) .. "_"
+    end, action .. " lines", true)
     local prefix = config.mappings[action]
     if prefix and prefix ~= "" then
       -- Mappings are callbacks so registers/counts reach the operator unchanged.

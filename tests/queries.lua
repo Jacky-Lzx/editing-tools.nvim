@@ -7,7 +7,7 @@ if vim.fn.isdirectory(parent .. "/toolchain-tools.nvim") == 1 then
 end
 vim.opt.rtp:append(vim.fn.stdpath("data") .. "/site")
 local H = require("tests.helpers")
-require("editing_tools").setup()
+dofile("tests/helpers.lua").setup()
 local languages = {
   "lua",
   "python",
