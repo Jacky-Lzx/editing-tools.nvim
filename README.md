@@ -227,3 +227,12 @@ Commands belong to the plugin; choose global entry keys and short aliases in
 your configuration. Registration reports same-name conflicts without replacing
 user commands. Reconfiguration refreshes only commands still owned by this
 plugin, and cleanup preserves subsequent user replacements.
+
+## Lifecycle and configuration
+
+`setup(opts)` starts from fresh defaults and copies caller tables. Maps merge
+recursively; lists replace defaults. Invalid options leave active edits and
+mappings unchanged. `dispose()` cancels transient editing sessions and removes
+only unchanged plugin-owned mappings, restoring displaced global mappings. It
+can be called repeatedly or before setup. Later `setup()` starts from defaults;
+stateless Lua actions and the plugin's command entry point remain available.

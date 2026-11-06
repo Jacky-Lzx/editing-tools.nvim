@@ -43,8 +43,8 @@ M.defaults = {
 M.options = vim.deepcopy(M.defaults)
 
 function M.setup(opts)
-  opts = opts or {}
-  vim.validate("opts", opts, "table")
+  assert(opts == nil or type(opts) == "table", "editing-tools: setup expects a table")
+  opts = vim.deepcopy(opts or {})
   local result = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts)
   assert(
     result.search.lines >= 0 and result.search.lines % 1 == 0,

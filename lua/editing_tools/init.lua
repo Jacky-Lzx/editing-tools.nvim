@@ -1,6 +1,16 @@
 local M = {}
 local owned = {}
 
+local function global_mapping(mode, lhs)
+  local raw = vim.keycode(lhs)
+  for _, mapping in ipairs(vim.api.nvim_get_keymap(mode)) do
+    if mapping.lhsraw == raw or vim.keycode(mapping.lhs) == raw then
+      mapping.buf = nil
+      return mapping
+    end
+  end
+end
+
 local function map(mode, lhs, rhs, desc, expr, action)
   if action then
     local plug = "<Plug>(EditingTools-" .. action .. ")"
@@ -13,13 +23,20 @@ local function map(mode, lhs, rhs, desc, expr, action)
   if not lhs or lhs == "" then
     return
   end
+  local previous = global_mapping(mode, lhs)
   vim.keymap.set(
     mode,
     lhs,
     rhs,
     { desc = "Editing: " .. desc, expr = expr or false, silent = true }
   )
-  owned[#owned + 1] = { mode, lhs, rhs }
+  local installed = assert(global_mapping(mode, lhs))
+  owned[#owned + 1] = {
+    mode = mode,
+    lhs = installed.lhs,
+    installed = installed,
+    previous = previous and next(previous) and previous or nil,
+  }
 end
 
 local function read_id()
@@ -70,19 +87,56 @@ local function empty_change(range, register)
   end
 end
 
+local function clear_mappings()
+  -- Global ownership must be checked beneath buffer-local overrides.
+  local snapshots = {}
+  for index = #owned, 1, -1 do
+    local item = owned[index]
+    local maps = snapshots[item.mode]
+    if not maps then
+      maps = {}
+      for _, mapping in ipairs(vim.api.nvim_get_keymap(item.mode)) do
+        mapping.buf = nil
+        maps[mapping.lhs] = mapping
+      end
+      snapshots[item.mode] = maps
+    end
+    local current = maps[item.lhs]
+    if current and vim.deep_equal(current, item.installed) then
+      vim.keymap.del(item.mode, item.lhs)
+      if item.previous then
+        vim.fn.mapset(item.mode, false, item.previous)
+      end
+      maps[item.lhs] = item.previous
+    end
+  end
+  owned = {}
+end
+
+function M.dispose()
+  for name, method in pairs({
+    multiedit = "stop",
+    align = "cancel",
+    exchange = "cancel",
+    operators = "abort",
+  }) do
+    local module = package.loaded["editing_tools." .. name]
+    if module then
+      module[method]()
+    end
+  end
+  clear_mappings()
+  require("editing_tools.config").setup()
+end
+
 function M.setup(opts)
+  -- Validate before cancelling active edits or replacing mappings.
+  local config = require("editing_tools.config").setup(opts)
   local multi = package.loaded["editing_tools.multiedit"]
   if multi then
     multi.stop()
   end
-  local config = require("editing_tools.config").setup(opts)
-  for _, item in ipairs(owned) do
-    local current = vim.fn.maparg(item[2], item[1], false, true)
-    if current.callback == item[3] or current.rhs == item[3] then
-      pcall(vim.keymap.del, item[1], item[2])
-    end
-  end
-  owned = {}
+  clear_mappings()
   for _, kind in ipairs({ "inside", "around" }) do
     for _, direction in ipairs({ "current", "next", "prev" }) do
       local name = kind .. (direction == "current" and "" or "_" .. direction)
