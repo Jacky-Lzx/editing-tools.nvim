@@ -4,7 +4,10 @@
     "unit",
     "ui"
   ],
-  "defaults": {},
+  "defaults": {
+    "EDITING_TOOLS_MOTION_DIR": "{root}/../motion-tools.nvim",
+    "EDITING_TOOLS_PAIRS_DIR": "{root}/../pairs.nvim"
+  },
   "cases": [
     {
       "name": "runner-contracts",
@@ -210,5 +213,21 @@
     "tests/helpers.lua": "Loaded by tests/align.lua",
     "tests/run.sh": "Stable shell entry point for tests/run.py"
   },
-  "manual": {}
+  "manual": {},
+  "requires": [
+    "path:$EDITING_TOOLS_MOTION_DIR/lua/motion_tools/init.lua",
+    "path:$EDITING_TOOLS_PAIRS_DIR/lua/pairs/init.lua"
+  ],
+  "fixtures": {
+    "motion-tools.nvim": {
+      "repository": "Jacky-Lzx/motion-tools.nvim",
+      "revision": "732593efbc9cacc3c20eeed74cc2016452aa8e68",
+      "path": "{root}/../motion-tools.nvim"
+    },
+    "pairs.nvim": {
+      "repository": "Jacky-Lzx/pairs.nvim",
+      "revision": "a0fa6d44476135bd5cb91952ac6b9f202aed8c58",
+      "path": "{root}/../pairs.nvim"
+    }
+  }
 }
