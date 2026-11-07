@@ -190,3 +190,9 @@ mappings unchanged. `dispose()` cancels transient editing sessions and removes
 only unchanged plugin-owned mappings, restoring displaced global mappings. It
 can be called repeatedly or before setup. Later `setup()` starts from defaults;
 stateless Lua actions and the plugin's command entry point remain available.
+
+## Health and inspection
+
+Health reports actionable failures and a compact result for applicable checks. Disabled,
+optional and not-yet-activated features do not warn solely because they are inactive.
+Inspection does not configure plugins, start services or install dependencies.
