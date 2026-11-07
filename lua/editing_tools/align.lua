@@ -4,6 +4,107 @@ local R = require("editing_tools.range")
 local ns = api.nvim_create_namespace("editing_tools.align")
 local active
 
+-- Alignment only changes whitespace. Keep each source character's highlights
+-- as it moves, including multiline syntax, injected captures and LSP tokens.
+local function preview_chunks(buf, row, source, replacement, cache)
+  if not cache.captures then
+    cache.captures = {}
+    local highlighter = vim.treesitter.highlighter.active[buf]
+    if highlighter then
+      highlighter.tree:for_each_tree(function(tree, language_tree)
+        local lang = language_tree:lang()
+        local query = highlighter:get_query(lang):query()
+        if not query then
+          return
+        end
+        local regions = tree:included_ranges(true)
+        for id, node, metadata in query:iter_captures(tree:root(), buf, row, row + 1) do
+          local sr, sc, _, er, ec = unpack(vim.treesitter.get_range(node, buf, metadata[id]))
+          if sr <= row and er >= row and query.captures[id]:sub(1, 1) ~= "_" then
+            for _, region in ipairs(regions) do
+              local rs, cs, _, re, ce = unpack(region)
+              local first = math.max(sr == row and sc or 0, rs == row and cs or 0)
+              local last = math.min(er == row and ec or #source, re == row and ce or #source)
+              if rs <= row and re >= row and first < last then
+                cache.captures[#cache.captures + 1] = {
+                  start = first,
+                  finish = last,
+                  hl_group = "@" .. query.captures[id] .. "." .. lang,
+                  priority = tonumber(metadata.priority or (metadata[id] or {}).priority)
+                    or vim.hl.priorities.treesitter,
+                }
+              end
+            end
+          end
+        end
+      end)
+    end
+  end
+  local function highlights(col)
+    if col > #source then
+      return { "Normal" }
+    end
+    if not cache[col] then
+      local items = vim.inspect_pos(buf, row, col - 1, { extmarks = false, treesitter = false })
+      local groups, overlays = {}, {}
+      local syntax = items.syntax[#items.syntax]
+      if syntax then
+        groups[#groups + 1] = syntax.hl_group
+      end
+      for _, capture in ipairs(cache.captures) do
+        if col - 1 >= capture.start and col - 1 < capture.finish then
+          overlays[#overlays + 1] = {
+            group = capture.hl_group,
+            priority = capture.priority,
+            order = #overlays + 1,
+          }
+        end
+      end
+      for _, token in ipairs(items.semantic_tokens) do
+        overlays[#overlays + 1] = {
+          group = token.opts.hl_group,
+          priority = token.opts.priority or vim.hl.priorities.semantic_tokens,
+          order = #overlays + 1,
+        }
+      end
+      table.sort(overlays, function(a, b)
+        return a.priority < b.priority or a.priority == b.priority and a.order < b.order
+      end)
+      for _, overlay in ipairs(overlays) do
+        groups[#groups + 1] = overlay.group
+      end
+      if #groups == 0 then
+        groups[1] = "Normal"
+      end
+      cache[col] = { groups = groups, key = table.concat(groups, "\0") }
+    end
+    return cache[col].groups, cache[col].key
+  end
+
+  local chunks, col, previous = {}, 1, nil
+  -- Iterate complete UTF-8 characters so virtual text chunks never split bytes.
+  for char in replacement:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+    if not char:match("%s") then
+      while col <= #source and source:sub(col, col):match("%s") do
+        col = col + 1
+      end
+    end
+    local groups, key = highlights(col)
+    if #chunks > 0 and key == previous then
+      chunks[#chunks][1] = chunks[#chunks][1] .. char
+    else
+      chunks[#chunks + 1] = { char, groups }
+    end
+    previous = key
+    if not char:match("%s") then
+      col = col + #char
+    elseif source:sub(col, col):match("%s") then
+      col = col + 1
+    end
+  end
+  return chunks
+end
+
 local function split_lines(lines, opts)
   local result, stack, quote, escaped = {}, {}, nil, false
   local closing = { ["("] = ")", ["["] = "]", ["{"] = "}" }
@@ -223,6 +324,7 @@ function M.interactive(range, opts, callback)
   })
   local group = api.nvim_create_augroup("editing_tools_align_session", { clear = true })
   local old_maps, installed = {}, {}
+  local highlight_cache = {}
   local function binding(lhs, rhs)
     old_maps[lhs] = vim.fn.maparg(lhs, "n", false, true)
     vim.keymap.set(
@@ -259,8 +361,13 @@ function M.interactive(range, opts, callback)
       local replacement = full:sub(1, col) .. prefix .. line .. suffix .. full:sub(finish + 1)
       local padding =
         math.max(0, vim.fn.strdisplaywidth(full) - vim.fn.strdisplaywidth(replacement))
+      highlight_cache[row] = highlight_cache[row] or {}
+      local chunks = preview_chunks(buf, row, full, replacement, highlight_cache[row])
+      if padding > 0 then
+        chunks[#chunks + 1] = { string.rep(" ", padding), "Normal" }
+      end
       api.nvim_buf_set_extmark(buf, ns, row, 0, {
-        virt_text = { { replacement .. string.rep(" ", padding), "Normal" } },
+        virt_text = chunks,
         virt_text_pos = "overlay",
         priority = 200,
       })

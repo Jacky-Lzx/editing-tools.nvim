@@ -187,4 +187,56 @@ H.keys("<C-v>j6lga")
 H.eq(A.is_active(), true, "block preview")
 H.keys("<Esc>")
 H.eq(H.lines(), { "[a=1]", "[long=2]" })
+
+-- Virtual text must carry source highlights to the aligned byte positions.
+H.buffer({ 'a="你好"', 'long="值"' })
+vim.cmd([[syntax region EditingAlignString start=/"/ end=/"/]])
+local token_ns = vim.api.nvim_create_namespace("nvim.lsp.semantic_tokens.editing_align_test")
+vim.api.nvim_buf_set_extmark(0, token_ns, 0, 0, {
+  end_col = 1,
+  hl_group = "Identifier",
+  priority = 125,
+})
+local highlight_tick = vim.api.nvim_buf_get_changedtick(0)
+local highlight_undo = vim.fn.undotree().seq_cur
+local highlight_modified = vim.bo.modified
+local align_ns = vim.api.nvim_get_namespaces()["editing_tools.align"]
+local function preview()
+  local mark = vim.api.nvim_buf_get_extmarks(0, align_ns, 0, -1, { details = true })[1]
+  local text, groups = "", {}
+  for _, chunk in ipairs(mark[4].virt_text) do
+    for byte = #text + 1, #text + #chunk[1] do
+      groups[byte] = type(chunk[2]) == "table" and chunk[2] or { chunk[2] }
+    end
+    text = text .. chunk[1]
+  end
+  return text, groups
+end
+H.keys("Vjga")
+local text, groups = preview()
+H.eq(text, 'a    = "你好"', "highlighted preview text")
+H.eq(vim.tbl_contains(groups[1], "Identifier"), true, "semantic token retained")
+H.eq(
+  vim.tbl_contains(groups[text:find("你", 1, true)], "EditingAlignString"),
+  true,
+  "UTF-8 string highlight moves with its source"
+)
+H.keys("+-jj")
+text, groups = preview()
+H.eq(
+  vim.tbl_contains(groups[text:find("你", 1, true)], "EditingAlignString"),
+  true,
+  "rerender retains syntax highlights"
+)
+H.eq(vim.api.nvim_buf_get_changedtick(0), highlight_tick)
+H.eq(vim.fn.undotree().seq_cur, highlight_undo)
+H.eq(vim.bo.modified, highlight_modified)
+H.keys("<Esc>")
+H.eq(#vim.api.nvim_buf_get_extmarks(0, align_ns, 0, -1, {}), 0, "cancel clears colored preview")
+H.eq(H.lines(), { 'a="你好"', 'long="值"' })
+H.keys("Vjga<CR>")
+H.eq(H.lines(), { 'a    = "你好"', 'long = "值"' })
+H.eq(#vim.api.nvim_buf_get_extmarks(0, align_ns, 0, -1, {}), 0, "confirm clears colored preview")
+H.keys("u")
+H.eq(H.lines(), { 'a="你好"', 'long="值"' }, "highlighted alignment remains one undo step")
 print("align: " .. H.count .. " assertions passed")
