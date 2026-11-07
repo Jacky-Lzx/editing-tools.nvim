@@ -1,21 +1,49 @@
-*editing-tools.txt*  Editing operators, alignment and multi-line insertion
-
-Author: Zexi Li
-License: MIT
-Requires: Neovim 0.12 or newer
+*editing-tools.txt*	Editing operators, alignment and insertion across selected lines.
 
 ==============================================================================
-CONTENTS                                                  *editing-tools*
+CONTENTS                                                       *editing-tools*
 
-  Setup                         |editing-tools-setup|
-  Operators                     |editing-tools-operators|
-  Alignment                     |editing-tools-align|
-  Commands                      |editing-tools-commands|
-  Lua API                       |editing-tools-api|
-  Limits                        |editing-tools-limits|
+  Quick start         |editing-tools-quickstart|
+  Commands            |editing-tools-commands|
+  Options             |editing-tools-options|
+  Lua API             |editing-tools-api|
+  Lifecycle           |editing-tools-lifecycle|
+  Troubleshooting     |editing-tools-troubleshooting|
 
 ==============================================================================
-SETUP                                                     *editing-tools-setup*
+QUICK START                                         *editing-tools-quickstart*
+
+Requires Neovim 0.12+. motion-tools.nvim is required for ranges and lexical
+scanning. Syntax-aware objects need their parsers.
+
+>lua
+    require("editing_tools").setup({})
+<
+
+The example above selects a small working setup. Full defaults, options and
+feature contracts are documented in this reference. Public installation and
+package-manager examples are in README.md.
+
+==============================================================================
+TROUBLESHOOTING                                *editing-tools-troubleshooting*
+
+Check the minimum Neovim version and feature dependencies first. Run
+:checkhealth editing_tools to inspect availability. Global mappings shown in
+the README are configuration examples unless explicitly documented as plugin
+defaults. Keep one owner for each overridden UI or mapping.
+
+==============================================================================
+OPTIONS                                                *editing-tools-options*
+
+Options are passed to require("editing_tools").setup(opts). The quick start is
+an example, not a dump of defaults. Detailed configuration and examples follow
+below.
+
+Author: Zexi Li License: MIT Requires: Neovim 0.12 or newer
+
+==============================================================================
+==============================================================================
+SETUP                                                    *editing-tools-setup*
 >
   require('editing_tools').setup()
 <
@@ -26,27 +54,23 @@ editing endpoints and validates options. Operators and their implementations
 load on first use. Ordinary Insert does not load them.
 
 Example configuration (all fields are optional): >
-  require('editing_tools').setup({
-    mappings = {
-      replace = 'cr', exchange = 'gx', multiply = 'gm',
-      sort = 'gs', evaluate = 'g=', align = 'ga',
-    },
-    align = {
-      delimiter = '=', occurrence = 'all', justify = 'left',
-      padding = 1, trim = true, outside = true,
-    },
-    sort = { numeric = false, ignore_case = false, reverse = false },
-  })
+require('editing_tools').setup({ mappings = { replace = 'cr', exchange = 'gx',
+multiply = 'gm', sort = 'gs', evaluate = 'g=', align = 'ga', }, align = {
+delimiter = '=', occurrence = 'all', justify = 'left', padding = 1, trim =
+true, outside = true, }, sort = { numeric = false, ignore_case = false,
+reverse = false }, })
 <
-Set any mapping to false or '' to disable it. Repeated setup removes maps still
-owned by editing-tools. Changing setup does not migrate an existing configuration.
-The defaults gx and ga replace Vim's URI opener and character-info commands.
+Set any mapping to false or '' to disable it. Repeated setup removes maps
+still owned by editing-tools. Changing setup does not migrate an existing
+configuration. The defaults gx and ga replace Vim's URI opener and
+character-info commands.
 
 ==============================================================================
-OPERATORS                                             *editing-tools-operators*
+OPERATORS                                            *editing-tools-operators*
 
-Each operator uses native |g@|, supports motions/text objects and works in Visual
-mode. Dot repeats the motion or Visual dimensions. Counts control motion extent.
+Each operator uses native |g@|, supports motions/text objects and works in
+Visual mode. Dot repeats the motion or Visual dimensions. Counts control
+motion extent.
 
   cr{motion} / crr     Replace from a register
   gx{motion} / gxx     Exchange two selections
@@ -65,42 +89,42 @@ Replacement uses the selected register without changing register contents: >
   crr                  Replace a line from the unnamed register
 <
 Character/line ranges accept multiline contents. For a block, one register row
-repeats over every selected row, or register height must match selection height.
-The expression register is unsupported.
+repeats over every selected row, or register height must match selection
+height. The expression register is unsupported.
 
 Exchange highlights the first selection with EditingToolsExchange (IncSearch).
 Choose the second selection with gx to apply. Extmarks track unrelated edits.
 Changed source text, overlapping ranges, mixed selection modes, nonmodifiable
-buffers and block exchange are rejected. Same-buffer exchange is one undo step;
-cross-buffer exchange has one undo step per buffer. :EditingTools cancel clears
-the first selection.
+buffers and block exchange are rejected. Same-buffer exchange is one undo
+step; cross-buffer exchange has one undo step per buffer. :EditingTools cancel
+clears the first selection.
 
 Sort compares whole lines for multiline/line/block selections. A single-line
-character selection sorts top-level comma fields, or whitespace-separated tokens
-if no top-level comma exists. Nested brackets and ordinary strings protect
-commas. Field whitespace is preserved in its original slots. Numeric mode sorts
-by leading number, with nonnumeric fields after numeric fields. Ties are stable.
+character selection sorts top-level comma fields, or whitespace-separated
+tokens if no top-level comma exists. Nested brackets and ordinary strings
+protect commas. Field whitespace is preserved in its original slots. Numeric
+mode sorts by leading number, with nonnumeric fields after numeric fields.
+Ties are stable.
 
-Arithmetic evaluation accepts numeric expressions with + - * / % ^ ( ), decimal
-numbers and exponents. It uses Lua arithmetic and rejects non-finite results.
-It does not evaluate general Lua code. Each selected row is one expression.
-A programmatic evaluator callback can provide another explicit transformation.
+Arithmetic evaluation accepts numeric expressions with + - * / % ^ ( ),
+decimal numbers and exponents. It uses Lua arithmetic and rejects non-finite
+results. It does not evaluate general Lua code. Each selected row is one
+expression. A programmatic evaluator callback can provide another explicit
+transformation.
 
 All editing operators have Normal/Visual <Plug> mappings: >
-  <Plug>(EditingTools-replace)
-  <Plug>(EditingTools-exchange)
-  <Plug>(EditingTools-multiply)
-  <Plug>(EditingTools-sort)
-  <Plug>(EditingTools-evaluate)
-  <Plug>(EditingTools-align)
+<Plug>(EditingTools-replace) <Plug>(EditingTools-exchange)
+<Plug>(EditingTools-multiply) <Plug>(EditingTools-sort)
+<Plug>(EditingTools-evaluate) <Plug>(EditingTools-align)
 <
 ==============================================================================
-ALIGNMENT                                                 *editing-tools-align*
+ALIGNMENT                                                *editing-tools-align*
 
-ga{motion}, gaa or Visual ga opens a preview. Virtual text displays the result;
-the source text, modified flag and undo history remain unchanged until Enter.
-The default delimiter is literal '='. Strings and brackets protect delimiters;
-bracket depth carries across selected lines. Leading indentation is preserved.
+ga{motion}, gaa or Visual ga opens a preview. Virtual text displays the
+result; the source text, modified flag and undo history remain unchanged until
+Enter. The default delimiter is literal '='. Strings and brackets protect
+delimiters; bracket depth carries across selected lines. Leading indentation
+is preserved.
 
   <CR>             Confirm and apply as one undo step
   <Esc>, CTRL-C    Cancel
@@ -114,11 +138,12 @@ bracket depth carries across selected lines. Leading indentation is preserved.
 
 Visual ga=, gaip= or 3gaa= selects the equals preset and updates the preview;
 Enter still confirms. Complete operators (=, <=, ==, +=, =>, etc.) are split
-into separate columns and aligned along with their values. This modifier resets
-occurrence to all, trims whitespace, uses one space between columns and includes
-matches inside strings and brackets, matching mini.align's '=' modifier. The d
-prompt returns to literal-delimiter alignment. The equals preset is reused by
-dot-repeat. Programmatic alignment can use preset='equals' with outside=false.
+into separate columns and aligned along with their values. This modifier
+resets occurrence to all, trims whitespace, uses one space between columns and
+includes matches inside strings and brackets, matching mini.align's '='
+modifier. The d prompt returns to literal-delimiter alignment. The equals
+preset is reused by dot-repeat. Programmatic alignment can use preset='equals'
+with outside=false.
 
 Preview mappings are temporary and buffer-local. Leaving the buffer/window,
 entering Insert mode or changing the source cancels. Asynchronous delimiter
@@ -130,92 +155,168 @@ Aligned fields expand Tabs to spaces; lines without a matched delimiter retain
 their original bytes. The first selected display column contributes to widths.
 
 ==============================================================================
-COMMANDS                                               *editing-tools-commands*
+COMMANDS                                              *editing-tools-commands*
 
-:[range]EditingTools {action} [delimiter]                       *:EditingTools*
+:[range]EditingTools {action} [delimiter]                      *:EditingTools*
 
-Apply an action to a line range, defaulting to the current line. Actions: align,
-evaluate, exchange, multiply, replace, sort. align accepts an optional literal
-delimiter and opens preview. Other actions execute immediately.
+Apply an action to a line range, defaulting to the current line. Actions:
+align, evaluate, exchange, multiply, replace, sort. align accepts an optional
+literal delimiter and opens preview. Other actions execute immediately.
 
 :EditingTools cancel
     Cancel pending exchange or alignment.
 
-Examples: >
-  :%EditingTools sort
-  :'<,'>EditingTools align =>
-  :EditingTools cancel
-  :checkhealth editing_tools
+Examples: > :%EditingTools sort :'<,'>EditingTools align => :EditingTools
+cancel :checkhealth editing_tools
 <
 ==============================================================================
-LUA API                                                     *editing-tools-api*
+LUA API                                                    *editing-tools-api*
 
 The module is require('editing_tools').
 
-apply(action, range, opts) -> boolean
-    Synchronous transformation; true if text changed. For exchange, false stages
-    the first range and true completes exchange. Options: buf, register, times
-    (additional copies, default 1), evaluator(lines)->lines, sort/align settings.
-    Explicit API errors raise before buffer writes wherever possible.
+apply(action, range, opts) -> boolean Synchronous transformation; true if text
+changed. For exchange, false stages the first range and true completes
+exchange. Options: buf, register, times (additional copies, default 1),
+evaluator(lines)->lines, sort/align settings. Explicit API errors raise before
+buffer writes wherever possible.
 
-operator(action, opts) -> string
-    Prepare an operator and return 'g@', for use in an expression mapping: >
-      vim.keymap.set('n', '<leader>s', function()
-        return require('editing_tools').operator('sort', { numeric = true })
-      end, { expr = true })
+operator(action, opts) -> string Prepare an operator and return 'g@', for use
+in an expression mapping: > vim.keymap.set('n', '<leader>s', function() return
+require('editing_tools').operator('sort', { numeric = true }) end, { expr =
+true })
 <
-align(range, opts)
-    Start interactive alignment in the current buffer.
+align(range, opts) Start interactive alignment in the current buffer.
 
-align_lines(lines, opts) -> lines
-    Pure alignment transformation. In addition to align settings: tabstop and
-    start_column (zero-based display column, default 0).
+align_lines(lines, opts) -> lines Pure alignment transformation. In addition
+to align settings: tabstop and start_column (zero-based display column,
+default 0).
 
-cancel_exchange()
-    Clear the first exchange range and its highlight.
+cancel_exchange() Clear the first exchange range and its highlight.
 
-Ranges use zero-based rows and UTF-8 byte columns: >
-  { start = { row, byte }, finish = { row, byte }, mode = 'char' }
+Ranges use zero-based rows and UTF-8 byte columns: > { start = { row, byte },
+finish = { row, byte }, mode = 'char' }
 <
-finish is exclusive, including the newline when finish is next-row column zero.
-Line ranges use mode='line' and include both endpoint rows, with start column 0
-and finish column equal to the final line's byte length. Range positions must be
-valid UTF-8 boundaries. Ranges are snapshots and should not be reused after edits.
+finish is exclusive, including the newline when finish is next-row column
+zero. Line ranges use mode='line' and include both endpoint rows, with start
+column 0 and finish column equal to the final line's byte length. Range
+positions must be valid UTF-8 boundaries. Ranges are snapshots and should not
+be reused after edits.
 
 require('editing_tools.range') exposes get(), put(), visual(), operator(kind),
-from_positions(first,last,kind,exclusive), validate() and select(). Block ranges
-must come from visual() or from_positions(), which preserve native virtual-column
-information and partial Tab/wide-character cells. Their transforms retain height.
-from_positions() accepts |getpos()| positions in the current buffer; kind can be
-'char', 'line', 'block', 'v', 'V' or CTRL-V.
+from_positions(first,last,kind,exclusive), validate() and select(). Block
+ranges must come from visual() or from_positions(), which preserve native
+virtual-column information and partial Tab/wide-character cells. Their
+transforms retain height. from_positions() accepts |getpos()| positions in the
+current buffer; kind can be 'char', 'line', 'block', 'v', 'V' or CTRL-V.
 
 Object providers, query options, find_object() and select_object() belong to
 motion-tools.nvim. editing_tools.range extends motion_tools.range with buffer
 get/put operations and native operator range capture.
 
 ==============================================================================
-LIMITS                                                   *editing-tools-limits*
+LIMITS                                                  *editing-tools-limits*
 
 Alignment recognizes ordinary quotes and balanced brackets; it does not parse
 language-specific literals or comments. Include opening brackets whose nesting
 should be honored in the selected range.
 
-Exchange supports character and line ranges. Other operators and alignment also
-support blocks. Empty objects support native change and dot-repeat while
+Exchange supports character and line ranges. Other operators and alignment
+also support blocks. Empty objects support native change and dot-repeat while
 preserving registers. Other operators cancel on a zero-width object, which
 cannot form a Visual selection.
 
 The implementation has no dependency on mini.nvim, repeat.vim, or a particular
-plugin manager. It deliberately has its own API and does not load legacy config.
-
+plugin manager. It deliberately has its own API and does not load legacy
+config.
 
 KEY OWNERSHIP
 
 setup() does not assign user keys. Text-object selection and g[ / g] belong to
 motion-tools.nvim; the EditingTools-inside/around/goto endpoints are removed.
-Visual insertion: <Plug>(EditingTools-insert_visual/append_visual).
-Operators: <Plug>(EditingTools-replace/exchange/multiply/sort/evaluate/align)
-in n/x modes; append -line for Normal-mode line operations. Each slash above
+Visual insertion: <Plug>(EditingTools-insert_visual/append_visual). Operators:
+<Plug>(EditingTools-replace/exchange/multiply/sort/evaluate/align) in n/x
+modes; append -line for Normal-mode line operations. Each slash above
 separates distinct endpoint names. Explicit mappings tables are opt-in.
 
-vim:tw=78:ts=8:ft=help:norl:
+==============================================================================
+CONFIGURATION AND API          *editing-tools-reference-configuration-and-api*
+
+>lua
+    require("editing_tools").setup({
+      align = { delimiter = "=", occurrence = "all", justify = "left",
+        padding = 1, trim = true, outside = true },
+      sort = { numeric = false, ignore_case = false, reverse = false },
+
+    })
+<
+
+All `mappings` entries default to `false`. Explicit `mappings = { exchange =
+"gx" }` remains an opt-in convenience; prefer binding the public endpoints in
+user configuration. Setup replaces only mappings still owned by this plugin.
+Recommended keys such as `gx` and `ga` replace native actions only if you bind
+them.
+
+The module name is `editing_tools`. Public APIs:
+
+- `apply(action, range, opts)` applies a synchronous edit. Options include
+  `buf`,
+sort settings, `register`, `times` (additional copies), and `evaluator`.
+- `operator(action, opts)` returns `g@` for an expression mapping.
+- `align(range, opts)` opens the interactive preview.
+- `align_lines(lines, opts)` is a pure transformation.
+- `cancel_exchange()` clears the pending exchange.
+
+A range is `{ start = { row, byte }, finish = { row, byte }, mode =
+"char"|"line" }`. Positions are zero-based and `finish` is exclusive. Line
+ranges include both endpoint rows; their columns should be `0` and the final
+line's byte length. Block ranges come from
+`require("editing_tools.range").visual()` or `from_positions()` and retain
+native virtual-column information. Ranges describe a snapshot, not a
+persistent selection; only pending exchange uses extmarks.
+
+`motion_tools.find_object()` supplies ranges when an API caller needs object
+recognition. `editing_tools.range` extends the shared `motion_tools.range`
+with `get`, `put`, and native `operator` range capture. Object configuration,
+queries and the former `find`/`select` APIs have moved to motion-tools;
+configure `motion_tools.setup({ textobjects = { search = ..., objects = ...,
+treesitter = ... } })`. The `MotionToolsObjectCancelled` User event cancels a
+pending custom operator without creating a reverse dependency from motion to
+editing.
+
+`:EditingTools {action}` operates on the current line; `:'<,'>EditingTools
+sort` and `:%EditingTools align =>` accept a line range. `:checkhealth
+editing_tools` checks runtime and the motion-tools dependency. See `:help
+editing-tools`.
+
+==============================================================================
+COMMAND OWNERSHIP                  *editing-tools-reference-command-ownership*
+
+Commands belong to the plugin; choose global entry keys and short aliases in
+your configuration. Registration reports same-name conflicts without replacing
+user commands. Reconfiguration refreshes only commands still owned by this
+plugin, and cleanup preserves subsequent user replacements.
+
+==============================================================================
+LIFECYCLE AND CONFIGURATION                          *editing-tools-lifecycle*
+                         *editing-tools-reference-lifecycle-and-configuration*
+
+`setup(opts)` starts from fresh defaults and copies caller tables. Maps merge
+recursively; lists replace defaults. Invalid options leave active edits and
+mappings unchanged. `dispose()` cancels transient editing sessions and removes
+only unchanged plugin-owned mappings, restoring displaced global mappings. It
+can be called repeatedly or before setup. Later `setup()` starts from
+defaults; stateless Lua actions and the plugin's command entry point remain
+available.
+
+==============================================================================
+HEALTH AND INSPECTION          *editing-tools-reference-health-and-inspection*
+
+Health reports actionable failures and a compact result for applicable checks.
+Disabled, optional and not-yet-activated features do not warn solely because
+they are inactive. Inspection does not configure plugins, start services or
+install dependencies.
+
+Test workflow (tests/README.md): registered suites, filtering, required
+fixtures and retained failure evidence.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

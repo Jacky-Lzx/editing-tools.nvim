@@ -66,3 +66,10 @@ run `python3 scripts/sync-test-runner.py --check` there to detect drift, or use
 The editing regression suite uses the parser fixtures built by the pinned
 motion-tools checkout. CI sets `EDITING_TOOLS_PARSER_DIR` to that isolated runtime
 instead of relying on parsers installed in the developer account.
+
+## Documentation checks
+
+`python3 tests/run.py unit --filter docs` checks local Markdown links and fragments,
+README Lua syntax, help entry points and isolated native setup. It does not
+download dependencies or write generated tags into the checkout. The canonical
+checker is maintained with the shared runner in plugin-tools.nvim.
