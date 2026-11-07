@@ -15,6 +15,15 @@ end, {
     end
     return vim.tbl_filter(function(value)
       return value:sub(1, #lead) == lead
-    end, { "align", "cancel", "evaluate", "exchange", "multiply", "replace", "sort" })
+    end, {
+      "align",
+      "cancel",
+      "evaluate",
+      "exchange",
+      "multiply",
+      "replace",
+      "sort",
+      "titlecase",
+    })
   end,
 })

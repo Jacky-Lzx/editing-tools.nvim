@@ -7,6 +7,7 @@ M.defaults = {
     multiply = false,
     sort = false,
     evaluate = false,
+    titlecase = false,
     align = false,
     insert_visual = false,
     append_visual = false,

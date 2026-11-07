@@ -132,4 +132,37 @@ function M.replace(lines, mode, opts)
   return content
 end
 
+-- English word casing; punctuation/Unicode bytes outside ASCII words are retained.
+local small_words = {}
+for word in ("a an the with and but for or from nor on in at to by of"):gmatch("%S+") do
+  small_words[word] = true
+end
+function M.titlecase(lines, _, opts)
+  opts = opts or {}
+  local small = small_words
+  if opts.small_words then
+    small = {}
+    for _, word in ipairs(opts.small_words) do
+      small[word:lower()] = true
+    end
+  end
+  local result = {}
+  for index, line in ipairs(lines) do
+    local count = 0
+    result[index] = line:gsub("(%a)([%w_']*)", function(first, rest)
+      count = count + 1
+      local word = (first .. rest):lower()
+      local preserved = opts.preserve and opts.preserve[word]
+      if preserved then
+        return preserved
+      end
+      if count == 1 or not small[word] then
+        return first:upper() .. rest:lower()
+      end
+      return word
+    end)
+  end
+  return result
+end
+
 return M

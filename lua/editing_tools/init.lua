@@ -117,7 +117,15 @@ function M.setup(opts)
   map("x", config.mappings.append_visual, function()
     M.append_visual()
   end, "append at each selected line", false, "append_visual")
-  for _, action in ipairs({ "replace", "exchange", "multiply", "sort", "evaluate", "align" }) do
+  for _, action in ipairs({
+    "replace",
+    "exchange",
+    "multiply",
+    "sort",
+    "evaluate",
+    "align",
+    "titlecase",
+  }) do
     local function start()
       return M.operator(action)
     end
@@ -143,6 +151,20 @@ end
 
 function M.apply(action, range, opts)
   return require("editing_tools.operators").apply(action, range, opts)
+end
+
+-- Inclusive one-based line range, matching Ex command ranges.
+function M.titlecase(first, last, opts)
+  local buf = opts and opts.buf or 0
+  first = first or vim.api.nvim_win_get_cursor(0)[1]
+  last = last or first
+  local line = vim.api.nvim_buf_get_lines(buf, last - 1, last, true)[1]
+  assert(line, "Titlecase range is outside the buffer")
+  return M.apply(
+    "titlecase",
+    { start = { first - 1, 0 }, finish = { last - 1, #line }, mode = "line" },
+    opts
+  )
 end
 
 function M.operator(action, opts)

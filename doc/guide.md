@@ -109,3 +109,14 @@ Object/query tests live in motion-tools.nvim. Editing tests use the sibling
 motion-tools.nvim checkout; set `EDITING_TOOLS_MOTION_DIR` to another checkout.
 Terminal tests use an isolated configuration and a real PTY, including actual
 pairs.nvim integration when available. Set `NVIM_BIN` to choose Neovim.
+
+## Title case
+
+`require("editing_tools").titlecase(first, last, opts)` applies English title
+case to an inclusive one-based line range. It uses the same edit/undo path as
+`apply("titlecase", range, opts)`; the latter also supports character/block ranges.
+`opts.small_words` replaces the default list of lower-case words.
+`opts.preserve = { api = "API", ios = "iOS" }` preserves explicit spellings.
+Default casing normalizes ASCII words and starts each line with a capital; it
+cannot infer proper names, acronyms or language-specific Unicode casing rules.
+The plugin publishes titlecase Plug endpoints without choosing physical keys.
